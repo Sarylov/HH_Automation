@@ -1,0 +1,16 @@
+{
+  "name": "Resume Maintainer",
+  "meta": {
+    "description": "Hourly resume raise orchestration.",
+    "schedule": "0 * * * *",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Cron Trigger (hourly)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/resume-maintainer",
+    "Body: { \"correlationId\": \"{{$execution.id}}\" }",
+    "Retries enabled (3x, backoff)",
+    "Error Workflow on failure",
+    "Idempotent within RESUME_RAISE_COOLDOWN_HOURS"
+  ]
+}

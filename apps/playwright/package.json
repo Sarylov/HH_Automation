@@ -1,0 +1,26 @@
+{
+  "name": "hh-playwright",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser automation service for HH Automation (no business logic)",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "auth:manual": "tsx src/auth-manual.ts",
+    "search:smoke": "tsx src/search-smoke.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "playwright": "^1.61.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.1",
+    "typescript": "^5.8.3"
+  }
+}

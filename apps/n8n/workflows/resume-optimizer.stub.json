@@ -1,0 +1,15 @@
+{
+  "name": "Resume Optimizer",
+  "meta": {
+    "schedule": "Every 3 days (e.g. 0 9 */3 * *)",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Cron Trigger (every 3 days)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/resume-optimizer",
+    "Body: { \"correlationId\": \"{{$execution.id}}\" }",
+    "Retries enabled",
+    "Error Workflow on failure",
+    "Updates up to 2 resumes from HH_RESUME_IDS; writes changelog + snapshot"
+  ]
+}

@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build
+dist/
+**/dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# Env / secrets
+.env
+.env.*
+!**/.env.example
+!.env.example
+*.pem
+credentials.json
+**/secrets/
+
+# Prisma
+apps/backend/generated/
+apps/backend/prisma/*.db
+apps/backend/prisma/*.db-journal
+
+# Playwright / HH session
+apps/playwright/test-results/
+apps/playwright/playwright-report/
+apps/playwright/.auth/
+**/.auth/
+**/storage-state.json
+**/screenshots/
+**/artifacts/
+
+# DB dumps / local backups
+backups/
+*.sql
+!**/migrations/**/*.sql
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker volumes (local)
+docker/data/

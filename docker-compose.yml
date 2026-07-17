@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hh}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hh_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-hh_automation}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - hh_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hh} -d ${POSTGRES_DB:-hh_automation}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: hh-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - hh_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: hh-n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      GENERIC_TIMEZONE: ${TZ:-Europe/Moscow}
+      TZ: ${TZ:-Europe/Moscow}
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB:-hh_automation}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER:-hh}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-hh_secret}
+      DB_POSTGRESDB_SCHEMA: n8n
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:3000/api}
+    volumes:
+      - hh_n8n_data:/home/node/.n8n
+      - ./apps/n8n/workflows:/home/node/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  hh_postgres_data:
+  hh_redis_data:
+  hh_n8n_data:

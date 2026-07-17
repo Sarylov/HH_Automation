@@ -1,0 +1,28 @@
+---
+description: Playwright automation service conventions
+globs: apps/playwright/**/*
+alwaysApply: false
+---
+
+# Playwright Rules
+
+- Responsibility: browser automation only (login, navigate, click, read, type)
+- No business logic, filtering, AI, or scheduling decisions
+- Prefer **Locator API**; avoid XPath
+- Configurable timeouts via env; no hardcoded magic numbers scattered in code
+- **No fixed `waitForTimeout` for flow control** — wait for conditions/locators
+- Use random human-like delays only where intentional (apply pacing)
+- Retries for flaky UI actions (bounded)
+- Capture screenshot + page HTML snippet on failure
+- One action module per domain area (auth, vacancies, chat, resume)
+
+## Example
+
+```typescript
+// ❌ BAD
+await page.waitForTimeout(5000);
+await page.$x('//button[@id="apply"]');
+
+// ✅ GOOD
+await page.getByRole('button', { name: /откликнуться/i }).click();
+```

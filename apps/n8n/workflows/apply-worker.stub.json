@@ -1,0 +1,15 @@
+{
+  "name": "Apply Worker",
+  "meta": {
+    "trigger": "queue (BullMQ) + optional HTTP",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Preferred: Backend BullMQ worker processes apply jobs automatically",
+    "Optional manual: HTTP POST {{$env.BACKEND_API_URL}}/workflows/apply",
+    "Body: { \"vacancyId\": \"<uuid>\", \"correlationId\": \"<workflow-run-id>\" }",
+    "correlationId is required for tracing across n8n → backend → Playwright",
+    "Enable HTTP node retries (3x, exponential backoff) on 5xx / network errors",
+    "Idempotent: unique application per vacancy; safe to retry FAILED jobs"
+  ]
+}

@@ -1,0 +1,16 @@
+---
+description: LLM usage conventions for text generation only
+globs: apps/backend/**/*llm*/**/*
+alwaysApply: false
+---
+
+# LLM Rules
+
+- LLM = text generation only (cover letters, chat replies, resume blurbs)
+- Always request **structured JSON** with a predictable schema
+- Use **low temperature** for deterministic output
+- Validate/parse responses; fail closed on schema mismatch
+- Keep prompts minimal and versioned; no huge inline prompts
+- Never give the LLM side effects (no “call API / click apply”)
+- Log prompt version + token usage; never log secrets
+- Handle rate limits and empty/malformed replies with retries/backoff

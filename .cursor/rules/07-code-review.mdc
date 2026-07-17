@@ -1,0 +1,17 @@
+---
+description: Code review checklist before merging changes
+alwaysApply: true
+---
+
+# Code Review Checklist
+
+- [ ] Layer boundaries respected (n8n / backend / playwright / LLM)
+- [ ] No `any`; strict TypeScript
+- [ ] Controllers thin; logic in use cases; Prisma only in repositories
+- [ ] Idempotent where retries can fire
+- [ ] Env-based config; no secrets in code
+- [ ] Structured logging present
+- [ ] Errors handled and observable
+- [ ] Playwright: Locator API, no fixed waits, failure screenshots
+- [ ] Tests or stubs for new use cases when feasible
+- [ ] Migrations included for schema changes

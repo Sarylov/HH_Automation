@@ -1,0 +1,13 @@
+{
+  "name": "Error Notify Stub",
+  "meta": {
+    "description": "Stub error workflow — replace with Telegram/email later.",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Error Trigger OR health status=degraded",
+    "Optional: GET /api/metrics — alert if alerts[] non-empty",
+    "Set node: format message (workflow name, error, correlationId, alerts)",
+    "Stub: write to n8n log / HTTP webhook placeholder"
+  ]
+}

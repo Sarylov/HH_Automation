@@ -1,0 +1,30 @@
+---
+description: Service boundaries and process design for HH Automation
+alwaysApply: true
+---
+
+# Architecture
+
+## Service boundaries
+
+| Layer | Responsibility | Must NOT do |
+|-------|----------------|-------------|
+| **n8n** | Cron, retries, workflow coordination | Business logic, DB writes, scraping |
+| **Backend** | Business logic, DB, AI calls, decisions | Browser automation, cron orchestration |
+| **Playwright** | Login, clicks, read/send DOM actions | Filtering, AI, scheduling decisions |
+| **LLM** | Text generation (letters, chat replies) | Side effects, DB, browser |
+
+## Process requirements
+
+Every workflow/use case must be:
+
+- **Independent** — can run without other workers
+- **Restartable** — safe after crash/redeploy
+- **Idempotent** — same input → same outcome (no duplicate applies)
+- **Observable** — logs, status fields, health endpoints
+
+## Request flow
+
+```
+n8n → Backend API (use case) → Playwright / LLM / DB
+```

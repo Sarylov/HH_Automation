@@ -1,0 +1,14 @@
+{
+  "name": "Vacancy Scanner",
+  "meta": {
+    "schedule": "Every 15-20 minutes during working hours",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Cron Trigger (working hours, */15 or */20)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/vacancy-scanner",
+    "Body: { \"correlationId\": \"{{$execution.id}}\", \"enqueue\": true }",
+    "Retries enabled",
+    "Error Workflow on failure"
+  ]
+}

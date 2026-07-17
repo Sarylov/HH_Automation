@@ -1,0 +1,17 @@
+{
+  "name": "hh-automation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HH Automation System — monorepo root",
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "backend:dev": "npm run start:dev --prefix apps/backend",
+    "backend:build": "npm run build --prefix apps/backend",
+    "playwright:start": "npm run start --prefix apps/playwright",
+    "playwright:typecheck": "npm run typecheck --prefix apps/playwright"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

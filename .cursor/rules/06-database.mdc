@@ -1,0 +1,16 @@
+---
+description: PostgreSQL and Prisma database conventions
+globs: "{apps/backend/prisma/**/*,**/schema.prisma}"
+alwaysApply: false
+---
+
+# Database Rules
+
+- PostgreSQL as primary store; Redis only for queues/cache
+- All schema changes via **Prisma migrations** (never manual prod edits)
+- Use **UUID** primary keys
+- Add indexes for query paths (status, externalId, createdAt, unique constraints)
+- No business logic in SQL / raw queries unless justified and reviewed
+- Soft-delete or status enums where auditability matters
+- Map domain enums explicitly in Prisma
+- Keep migrations small and reversible where possible

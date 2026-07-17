@@ -1,0 +1,15 @@
+{
+  "name": "Health Check",
+  "meta": {
+    "description": "Every 30 minutes: deep health. If degraded → Error Workflow.",
+    "schedule": "*/30 * * * *",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Cron Trigger (every 30 minutes)",
+    "HTTP Request GET {{$env.BACKEND_API_URL}}/health",
+    "IF checks.session == down OR status == degraded → Error Workflow",
+    "Optional: HTTP POST {{$env.BACKEND_API_URL}}/auth/refresh before health"
+  ],
+  "errorWorkflow": "error-notify"
+}

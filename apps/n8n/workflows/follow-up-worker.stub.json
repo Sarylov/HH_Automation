@@ -1,0 +1,15 @@
+{
+  "name": "Follow-up Worker",
+  "meta": {
+    "schedule": "Once per day",
+    "responsibility": "orchestration-only",
+    "rules": "Max 3 reminders if no employer response"
+  },
+  "nodesHint": [
+    "Cron Trigger (daily, e.g. 0 10 * * *)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/follow-up",
+    "Body: { \"correlationId\": \"{{$execution.id}}\" }",
+    "Retries enabled",
+    "Hard cap: never sends a 4th reminder"
+  ]
+}

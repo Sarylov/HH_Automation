@@ -1,0 +1,37 @@
+---
+description: NestJS backend conventions (Controller → UseCase → Repository)
+globs: apps/backend/**/*
+alwaysApply: false
+---
+
+# Backend Rules
+
+## Layering
+
+```
+Controller → UseCase → Repository → Database
+```
+
+- Controllers: HTTP only — validate DTO, call use case, map response
+- UseCases: one business scenario per class; orchestration and decisions
+- Repositories: all persistence; **Prisma only inside repositories**
+- No Prisma / SQL outside repository layer
+
+## Requirements
+
+- Validate all inputs with DTOs (`class-validator` / Zod)
+- Centralized error handling (filters / domain errors)
+- Structured logging on every use-case entry/exit and failure
+- Inject dependencies via NestJS DI; no manual `new` for services
+- Keep controllers thin; no business rules in controllers
+- Prefer explicit return types on public methods
+
+## Anti-patterns
+
+```typescript
+// ❌ BAD — Prisma in controller / use case
+await this.prisma.vacancy.create({ data });
+
+// ✅ GOOD — via repository
+await this.vacancyRepository.create(data);
+```

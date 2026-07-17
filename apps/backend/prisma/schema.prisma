@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkflowName {
+  RESUME_MAINTAINER
+  RESUME_OPTIMIZER
+  VACANCY_SCANNER
+  APPLY_WORKER
+  CHAT_PROCESSOR
+  FOLLOW_UP_WORKER
+  HEALTH_CHECK
+}
+
+enum WorkflowRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum AuthSessionStatus {
+  UNKNOWN
+  UP
+  DOWN
+}
+
+enum VacancyStatus {
+  NEW
+  QUEUED
+  APPLIED
+  SKIPPED
+  FAILED
+}
+
+enum ApplicationStatus {
+  STUB
+  APPLIED
+  FAILED
+  NEEDS_MANUAL
+}
+
+enum ApplyJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum ResumeActionType {
+  RAISE
+  OPTIMIZE
+  SKIP
+}
+
+enum ResumeActionStatus {
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+model WorkflowRun {
+  id            String            @id @default(uuid()) @db.Uuid
+  workflow      WorkflowName
+  status        WorkflowRunStatus @default(PENDING)
+  correlationId String?           @map("correlation_id")
+  startedAt     DateTime?         @map("started_at")
+  finishedAt    DateTime?         @map("finished_at")
+  errorMessage  String?           @map("error_message")
+  metadata      Json?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  @@index([workflow, status])
+  @@index([createdAt])
+  @@map("workflow_runs")
+}
+
+model AuthSession {
+  id          String            @id @default(uuid()) @db.Uuid
+  status      AuthSessionStatus @default(UNKNOWN)
+  storagePath String            @map("storage_path")
+  checkedAt   DateTime?         @map("checked_at")
+  lastError   String?           @map("last_error")
+  metadata    Json?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("auth_sessions")
+}
+
+model Vacancy {
+  id          String        @id @default(uuid()) @db.Uuid
+  externalId  String        @unique @map("external_id")
+  title       String
+  url         String
+  company     String?
+  salary      String?
+  snippet     String?
+  status      VacancyStatus @default(NEW)
+  raw         Json?
+  firstSeenAt DateTime      @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime      @default(now()) @map("last_seen_at")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  applications Application[]
+  applyJobs    ApplyJob[]
+
+  @@index([status])
+  @@index([lastSeenAt])
+  @@map("vacancies")
+}
+
+model Application {
+  id            String            @id @default(uuid()) @db.Uuid
+  vacancyId     String            @map("vacancy_id") @db.Uuid
+  status        ApplicationStatus @default(STUB)
+  coverLetter   String?           @map("cover_letter")
+  analysis      Json?
+  errorMessage  String?           @map("error_message")
+  correlationId String?           @map("correlation_id")
+  appliedAt     DateTime?         @map("applied_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  vacancy Vacancy @relation(fields: [vacancyId], references: [id])
+  followUp FollowUpState?
+
+  @@unique([vacancyId])
+  @@index([status])
+  @@map("applications")
+}
+
+model ApplyJob {
+  id            String         @id @default(uuid()) @db.Uuid
+  vacancyId     String         @map("vacancy_id") @db.Uuid
+  status        ApplyJobStatus @default(PENDING)
+  attempts      Int            @default(0)
+  lastError     String?        @map("last_error")
+  correlationId String?        @map("correlation_id")
+  queuedAt      DateTime       @default(now()) @map("queued_at")
+  startedAt     DateTime?      @map("started_at")
+  finishedAt    DateTime?      @map("finished_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  vacancy Vacancy @relation(fields: [vacancyId], references: [id])
+
+  @@index([status, queuedAt])
+  @@index([vacancyId, status])
+  @@map("apply_jobs")
+}
+
+model Resume {
+  id              String    @id @default(uuid()) @db.Uuid
+  externalId      String    @unique @map("external_id")
+  title           String?
+  url             String?
+  fieldsSnapshot  Json?     @map("fields_snapshot")
+  lastRaisedAt    DateTime? @map("last_raised_at")
+  lastOptimizedAt DateTime? @map("last_optimized_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  actions ResumeAction[]
+
+  @@index([lastRaisedAt])
+  @@index([lastOptimizedAt])
+  @@map("resumes")
+}
+
+model ResumeAction {
+  id            String              @id @default(uuid()) @db.Uuid
+  resumeId      String?             @map("resume_id") @db.Uuid
+  type          ResumeActionType
+  status        ResumeActionStatus
+  reason        String?
+  changelog     Json?
+  snapshot      Json?
+  correlationId String?             @map("correlation_id")
+  workflowRunId String?             @map("workflow_run_id") @db.Uuid
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  resume Resume? @relation(fields: [resumeId], references: [id])
+
+  @@index([type, status, createdAt])
+  @@index([resumeId, type, createdAt])
+  @@map("resume_actions")
+}
+
+enum ChatThreadStatus {
+  OPEN
+  PROCESSED
+  NEEDS_MANUAL
+  CLOSED
+}
+
+enum ChatMessageRole {
+  EMPLOYER
+  APPLICANT
+  SYSTEM
+}
+
+enum ChatClassification {
+  TEMPLATE
+  AI_QA
+  REJECTION
+  INTERVIEW
+  UNKNOWN
+}
+
+enum FollowUpStatus {
+  ACTIVE
+  COMPLETED
+  STOPPED
+}
+
+model ChatThread {
+  id              String           @id @default(uuid()) @db.Uuid
+  externalId      String           @unique @map("external_id")
+  employerName    String?          @map("employer_name")
+  vacancyTitle    String?          @map("vacancy_title")
+  url             String?
+  status          ChatThreadStatus @default(OPEN)
+  classification  ChatClassification?
+  lastMessageAt   DateTime?        @map("last_message_at")
+  lastProcessedAt DateTime?        @map("last_processed_at")
+  notifyReason    String?          @map("notify_reason")
+  metadata        Json?
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  messages  ChatMessage[]
+  followUps FollowUpState[]
+
+  @@index([status, lastMessageAt])
+  @@index([classification])
+  @@map("chat_threads")
+}
+
+model ChatMessage {
+  id            String          @id @default(uuid()) @db.Uuid
+  threadId      String          @map("thread_id") @db.Uuid
+  externalId    String?         @map("external_id")
+  role          ChatMessageRole
+  body          String
+  sentAt        DateTime?       @map("sent_at")
+  correlationId String?         @map("correlation_id")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  thread ChatThread @relation(fields: [threadId], references: [id])
+
+  @@unique([threadId, externalId])
+  @@index([threadId, sentAt])
+  @@map("chat_messages")
+}
+
+model FollowUpState {
+  id             String         @id @default(uuid()) @db.Uuid
+  threadId       String?        @map("thread_id") @db.Uuid
+  applicationId  String?        @unique @map("application_id") @db.Uuid
+  status         FollowUpStatus @default(ACTIVE)
+  reminderCount  Int            @default(0) @map("reminder_count")
+  maxReminders   Int            @default(3) @map("max_reminders")
+  lastReminderAt DateTime?      @map("last_reminder_at")
+  nextReminderAt DateTime?      @map("next_reminder_at")
+  lastEmployerAt DateTime?      @map("last_employer_at")
+  correlationId  String?        @map("correlation_id")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  thread      ChatThread?  @relation(fields: [threadId], references: [id])
+  application Application? @relation(fields: [applicationId], references: [id])
+
+  @@index([status, nextReminderAt])
+  @@index([reminderCount])
+  @@map("follow_up_states")
+}

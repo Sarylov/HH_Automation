@@ -1,0 +1,15 @@
+{
+  "name": "Chat Processor",
+  "meta": {
+    "schedule": "Every 5–10 minutes",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "Cron Trigger (*/5 * * * * or similar)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/chat-processor",
+    "Body: { \"correlationId\": \"{{$execution.id}}\", \"limit\": 10 }",
+    "Retries enabled",
+    "Error Workflow on failure",
+    "Rejection → processed (no reply); Interview → notify path"
+  ]
+}
