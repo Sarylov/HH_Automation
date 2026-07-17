@@ -16,6 +16,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      default: {}
 
   redis:
     image: redis:7-alpine
@@ -30,18 +32,81 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      default: {}
+
+  playwright:
+    image: ghcr.io/${GHCR_OWNER:-local}/hh-playwright:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.playwright
+    container_name: hh-playwright
+    restart: unless-stopped
+    shm_size: "1gb"
+    ports:
+      - "127.0.0.1:${PLAYWRIGHT_PORT:-3100}:3100"
+    environment:
+      HH_BASE_URL: ${HH_BASE_URL:-https://hh.ru}
+      PLAYWRIGHT_HEADLESS: ${PLAYWRIGHT_HEADLESS:-true}
+      PLAYWRIGHT_DEBUG_PAUSE_MS: ${PLAYWRIGHT_DEBUG_PAUSE_MS:-0}
+      PLAYWRIGHT_PORT: 3100
+      PLAYWRIGHT_DEFAULT_TIMEOUT_MS: ${PLAYWRIGHT_DEFAULT_TIMEOUT_MS:-30000}
+      PLAYWRIGHT_NAVIGATION_TIMEOUT_MS: ${PLAYWRIGHT_NAVIGATION_TIMEOUT_MS:-60000}
+      PLAYWRIGHT_STORAGE_STATE_PATH: /data/.auth/storage-state.json
+      PLAYWRIGHT_ARTIFACTS_DIR: /data/artifacts
+      HH_LOGIN: ${HH_LOGIN:-}
+      HH_PASSWORD: ${HH_PASSWORD:-}
+    volumes:
+      - ./apps/playwright/.auth:/data/.auth
+      - ./apps/playwright/artifacts:/data/artifacts
+    networks:
+      default: {}
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-local}/hh-backend:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: hh-backend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      TZ: ${TZ:-Europe/Moscow}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hh}:${POSTGRES_PASSWORD:-hh_secret}@postgres:5432/${POSTGRES_DB:-hh_automation}?schema=public
+      REDIS_URL: redis://redis:6379
+      PLAYWRIGHT_BASE_URL: http://playwright:3100
+      PLAYWRIGHT_STORAGE_STATE_PATH: /data/.auth/storage-state.json
+    volumes:
+      - ./apps/playwright/.auth:/data/.auth:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      playwright:
+        condition: service_started
+    networks:
+      default: {}
 
   n8n:
     image: n8nio/n8n:latest
     container_name: hh-n8n
     restart: unless-stopped
+    # Local/debug only — not exposed publicly when behind Traefik
     ports:
-      - "${N8N_PORT:-5678}:5678"
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
     environment:
       N8N_HOST: ${N8N_HOST:-localhost}
       N8N_PORT: 5678
       N8N_PROTOCOL: ${N8N_PROTOCOL:-http}
+      N8N_EDITOR_BASE_URL: ${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
       WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      N8N_PROXY_HOPS: ${N8N_PROXY_HOPS:-1}
       GENERIC_TIMEZONE: ${TZ:-Europe/Moscow}
       TZ: ${TZ:-Europe/Moscow}
       DB_TYPE: postgresdb
@@ -51,15 +116,17 @@ services:
       DB_POSTGRESDB_USER: ${POSTGRES_USER:-hh}
       DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD:-hh_secret}
       DB_POSTGRESDB_SCHEMA: n8n
-      BACKEND_API_URL: ${BACKEND_API_URL:-http://host.docker.internal:3000/api}
+      BACKEND_API_URL: ${BACKEND_API_URL:-http://backend:3000/api}
     volumes:
       - hh_n8n_data:/home/node/.n8n
       - ./apps/n8n/workflows:/home/node/workflows:ro
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      backend:
+        condition: service_started
+    networks:
+      default: {}
 
 volumes:
   hh_postgres_data:

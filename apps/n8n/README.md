@@ -10,3 +10,11 @@ Rules:
 - Pass `correlationId` when available
 
 See `docs/processes.md` for the process catalog.
+
+## Traefik (server)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
+
+Set `N8N_DOMAIN` and HTTPS URL vars in `.env` — details in `docker/README.md` and `docs/runbook-deploy.md`.

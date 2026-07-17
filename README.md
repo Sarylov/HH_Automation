@@ -32,39 +32,36 @@ Full details: [ARCHITECTURE.md](./ARCHITECTURE.md)
 cp .env.example .env
 ```
 
-### 2. Infrastructure
+### 2. Infrastructure + apps (Docker)
 
 ```bash
+# Local: build images and start all services
+export GHCR_OWNER=local
+docker compose build backend playwright
 docker compose up -d
 ```
 
-Starts PostgreSQL, Redis, and n8n.
+Starts PostgreSQL, Redis, Playwright, Backend, and n8n.
 
-### 3. Backend
+Server + Traefik: see [docs/runbook-deploy.md](./docs/runbook-deploy.md) and [docker/README.md](./docker/README.md).
 
-```bash
-cd apps/backend
-cp ../../.env .env   # or symlink
-npm install
-npx prisma migrate dev --name init
-npm run start:dev
-```
+CI/CD (push to `main` → GHCR → SSH deploy): [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml).
 
-Health: `GET http://localhost:3000/api/health`
+### 3. Verify
 
-Workflow stubs: `POST http://localhost:3000/api/workflows/:name`
+- Backend health: `GET http://localhost:3000/api/health`
+- Playwright: `GET http://localhost:3100/health`
+- n8n: http://localhost:5678 — import stubs from `apps/n8n/workflows/`.
 
-### 4. Playwright (smoke)
+### 4. Manual HH login (once)
 
 ```bash
 cd apps/playwright
 npm install
-npm run start
+npm run auth:manual
 ```
 
-### 5. n8n
-
-Open http://localhost:5678 — import stubs from `apps/n8n/workflows/`.
+Copy `apps/playwright/.auth/storage-state.json` onto the server (same path) if you logged in locally.
 
 ## Cursor
 

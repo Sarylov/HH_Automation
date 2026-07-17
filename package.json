@@ -5,7 +5,9 @@
   "description": "HH Automation System — monorepo root",
   "scripts": {
     "docker:up": "docker compose up -d",
+    "docker:up:traefik": "docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d",
     "docker:down": "docker compose down",
+    "docker:build": "docker compose build backend playwright",
     "backend:dev": "npm run start:dev --prefix apps/backend",
     "backend:build": "npm run build --prefix apps/backend",
     "playwright:start": "npm run start --prefix apps/playwright",

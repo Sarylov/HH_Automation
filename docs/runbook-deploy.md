@@ -1,36 +1,107 @@
-# Deploy runbook (Compose / local-prod)
+# Deploy runbook (Compose / GHCR / Traefik)
 
 ## Prerequisites
 
-- Docker + Compose
-- Filled `.env` (see `.env.example`)
-- Valid Playwright `storageState` (session) for hh.ru
+- Docker + Compose on the VPS
+- Existing Traefik (shared Docker network)
+- Filled `.env` on the server (see `.env.example`)
+- Valid Playwright `storageState` at `apps/playwright/.auth/storage-state.json`
+- GitHub Actions secrets/variables (see below)
+
+## Containers
+
+| Name | Role |
+|------|------|
+| `hh-postgres` | Database |
+| `hh-redis` | Queue |
+| `hh-playwright` | Browser service (`:3100`) |
+| `hh-backend` | API (`:3000`), migrates DB on start |
+| `hh-n8n` | Orchestration UI (via Traefik) |
+
+Traefik stays outside this compose.
+
+## GitHub Actions (push to `main`)
+
+Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
+
+Flow: build `hh-backend` + `hh-playwright` → push GHCR → SSH → `git pull` + `compose pull/up`.
+
+### Secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Purpose |
+|--------|---------|
+| `DEPLOY_HOST` | VPS IP or hostname |
+| `DEPLOY_USER` | SSH user |
+| `DEPLOY_SSH_KEY` | Private key (public key in `~/.ssh/authorized_keys` on VPS) |
+| `DEPLOY_PATH` | Absolute path to repo clone, e.g. `/opt/hh-automation` |
+| `GHCR_READ_TOKEN` | Optional. PAT with `read:packages` if GHCR images are private |
+
+### Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `GHCR_OWNER` | Optional. Defaults to `github.repository_owner` (lowercased in workflow) |
+
+Also set `GHCR_OWNER` in the **server** `.env` so compose resolves the same image names.
+
+### One-time VPS setup
+
+1. Clone repo to `DEPLOY_PATH`, create `.env` from `.env.example` (prod values).
+2. `mkdir -p apps/playwright/.auth apps/playwright/artifacts` and copy `storage-state.json`.
+3. Ensure Traefik network exists; set `N8N_DOMAIN` / `TRAEFIK_*`.
+4. If packages are private: `docker login ghcr.io` once (or rely on `GHCR_READ_TOKEN` in Actions).
+5. SSH: install the deploy public key for `DEPLOY_USER`.
+6. First start:
+   ```bash
+   cd "$DEPLOY_PATH"
+   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+   ```
+7. Confirm git remote can `git pull origin main` as `DEPLOY_USER`.
 
 ## Start order
 
-1. `docker compose up -d` — Postgres, Redis, n8n
-2. Backend: `cd apps/backend && npx prisma migrate deploy && npm run start:prod` (or `start:dev`)
-3. Playwright: `cd apps/playwright && npm run start` (service on `PLAYWRIGHT_PORT`)
-4. Verify: `GET /api/health` → `status: ok` (or `degraded` only if intentional)
-5. Verify: `GET /api/metrics` → no unexpected `alerts`
+### Server (recommended)
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
+
+Or push to `main` and let Actions deploy.
+
+### Local (optional build)
+
+```bash
+export GHCR_OWNER=local
+docker compose build backend playwright
+docker compose up -d
+```
+
+## Verify
+
+1. `curl -s http://127.0.0.1:3000/api/health` → `status: ok` (or intentional `degraded`)
+2. `curl -s http://127.0.0.1:3100/health` → playwright up
+3. `curl -s http://127.0.0.1:3000/api/metrics` → no unexpected `alerts`
+4. n8n UI: `https://$N8N_DOMAIN`
 
 ## Env checklist (prod)
 
 | Variable | Notes |
 |----------|--------|
-| `DATABASE_URL` | Postgres from Compose |
-| `REDIS_URL` | Redis from Compose |
-| `PLAYWRIGHT_BASE_URL` | Reachable from backend |
+| `GHCR_OWNER` / `IMAGE_TAG` | Match GHCR images |
+| `DATABASE_URL` | Overridden inside compose to `@postgres` for backend |
+| `REDIS_URL` | Overridden to `redis://redis:6379` for backend |
+| `PLAYWRIGHT_BASE_URL` | Overridden to `http://playwright:3100` for backend |
+| `BACKEND_API_URL` | `http://backend:3000/api` for n8n |
 | `LLM_*` | Required for apply / chat / resume optimize |
 | `DRY_RUN` | `true` for first smoke; `false` for live |
 | `WORKING_HOURS_*` | Gate scanner/apply |
 | `APPLY_MAX_PER_HOUR` / `APPLY_MAX_PER_DAY` | Anti-ban caps |
 | `HH_RESUME_IDS` | Two resumes for optimizer |
+| `N8N_DOMAIN` / `TRAEFIK_*` | Public n8n via Traefik |
 
 ## Database backups
 
 ```bash
-# Example daily dump (host with docker)
 docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
   > "backups/hh_$(date +%Y%m%d).sql"
 ```
@@ -40,14 +111,16 @@ Keep at least 7 daily dumps. Test restore on a throwaway DB before relying on it
 ## Session rotation
 
 1. Pause apply/chat workers or set `DRY_RUN=true`
-2. Re-login via Playwright manual flow / `POST /auth/login` (or regenerate `storage-state.json`)
-3. `POST /api/auth/refresh` (or wait for health check) until `session: up`
+2. Re-login via Playwright manual flow / regenerate `apps/playwright/.auth/storage-state.json`
+3. `POST /api/auth/refresh` until session is up
 4. Confirm `GET /api/metrics` → `session.stale: false`
 5. Re-enable live mode
 
-Session max age: `SESSION_MAX_AGE_HOURS` (default 72). Health/metrics mark stale sessions.
+Session max age: `SESSION_MAX_AGE_HOURS` (default 72).
 
 ## n8n
+
+Behind Traefik: open `https://$N8N_DOMAIN`.
 
 Import/create workflows from `apps/n8n/workflows/*.stub.json` hints:
 
