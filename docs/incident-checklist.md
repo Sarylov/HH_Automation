@@ -25,11 +25,11 @@
 **Signals:** metrics `queue_stuck_running` / `queue_backlog`; many `ApplyJob` `RUNNING`/`PENDING`.
 
 1. `GET /api/metrics` — note `queue.pending`, `queue.running`
-2. Inspect backend logs for `ApplyProcessor` / Playwright timeouts
-3. For jobs `RUNNING` > 30 min: mark `FAILED` in DB (or restart backend after confirming no live browser)
-4. Check Redis connectivity (`REDIS_URL`)
-5. Re-enqueue carefully or re-run scanner with `enqueue: true`
-6. If rate-limited (`apply_hour_limit` / `apply_day_limit`): wait for window reset or raise limits consciously
+2. Inspect backend logs for `ApplyNext` / Playwright timeouts
+3. For jobs `RUNNING` > `APPLY_JOB_STUCK_MINUTES` (default 30): next `apply-next` reclaims them, or mark `FAILED` in DB
+4. Re-run scanner with `enqueue: true` only for new vacancies (existing applications are skipped)
+5. If rate-limited (`apply_hour_limit` / `apply_day_limit`): wait for window reset or raise limits consciously
+6. Pause n8n apply-next cron while debugging
 
 ## Apply failures spike
 

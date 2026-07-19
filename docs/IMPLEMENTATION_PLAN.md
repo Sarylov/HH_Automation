@@ -7,9 +7,11 @@
 ## Зафиксированные решения
 
 - Оркестрация только в **n8n**; бизнес-логика в **NestJS**; браузер только в **Playwright**
-- Очередь Apply Worker: **BullMQ + Redis**
+- Очередь Apply: **Postgres `ApplyJob`** + n8n **`apply-next`** (без Redis/BullMQ)
 - Auth hh.ru: **Playwright session** (`storageState`), без официального HH API на старте
 - LLM: OpenAI-compatible adapter, structured JSON, low temperature
+- Ops UI: **`apps/web`** (Vite + React + Tailwind); read-only; данные только через Backend API
+- UX Ops UI: две страницы-таблицы (Queue, Applications); сопроводительное письмо — модалка по клику (повторный клик / Esc / backdrop закрывает)
 
 ## Порядок фаз
 
@@ -51,7 +53,7 @@ flowchart TB
 **Цель:** локальный стенд поднимается без сюрпризов.
 
 - Скопировать `.env.example` → `.env` и `apps/backend/.env` (`DATABASE_URL` под Compose)
-- `docker compose up -d` (Postgres, Redis, n8n)
+- `docker compose up -d` (Postgres, n8n; backend/playwright as needed)
 - `prisma migrate dev --name init` (модель `WorkflowRun` в `apps/backend/prisma/schema.prisma`)
 - Проверить: `GET /api/health`, stub `POST /api/workflows/*`, smoke Playwright
 
@@ -85,25 +87,24 @@ sequenceDiagram
   participant Backend
   participant PW as Playwright
   participant DB as Postgres
-  participant Q as RedisBullMQ
-  N8n->>Backend: POST vacancy-scanner
+  N8n->>Backend: POST vacancy-scanner enqueue true
   Backend->>PW: search vacancies
   PW-->>Backend: raw vacancy list
-  Backend->>DB: upsert by externalId
-  Backend->>Q: enqueue new APPLY jobs
-  N8n->>Backend: POST apply vacancyId
-  Backend->>PW: open vacancy stub apply
-  Backend->>DB: save Application SKIPPED_or_STUB
+  Backend->>DB: upsert Vacancy + ApplyJob PENDING
+  N8n->>Backend: POST apply-next
+  Backend->>DB: claim oldest ApplyJob
+  Backend->>PW: open vacancy apply
+  Backend->>DB: save Application
 ```
 
 | Слой | Работа |
 |------|--------|
 | Prisma | `Vacancy`, `Application`, `ApplyJob` (status: PENDING/RUNNING/DONE/FAILED), unique `externalId` |
-| Backend | `VacancyScannerUseCase`, `EnqueueApplyUseCase`, `ApplyWorkerUseCase` (skeleton) |
+| Backend | `ScanVacanciesUseCase`, `ApplyNextUseCase`, `ApplyToVacancyUseCase` |
 | Playwright | `actions/vacancies`: search, open, read card fields (без решений) |
-| n8n | Cron Vacancy Scanner (15–20 мин, рабочие часы); consumer Apply из очереди / HTTP |
+| n8n | Cron Vacancy Scanner (раз в сутки); cron Apply → `apply-next` |
 
-**Идемпотентность:** upsert по `hhVacancyId`; повторный apply того же id не дублирует отклик.
+**Идемпотентность:** upsert по `hhVacancyId`; повторный apply того же id не дублирует отклик; claim `PENDING→RUNNING` атомарный.
 
 **Done when:** повторный scanner не плодит дубликаты; очередь наполняется; apply stub пишет результат в БД.
 
@@ -161,11 +162,41 @@ sequenceDiagram
 
 ---
 
+## Phase 7 — Ops UI
+
+**Цель:** видеть очередь `ApplyJob` и отклики `Application` (когда, вакансия, статус, сопроводительное письмо) без SQL и n8n.
+
+```mermaid
+flowchart LR
+  Web[apps/web] -->|GET read API| Backend
+  N8n[n8n] -->|POST workflows| Backend
+  Backend --> DB[(Postgres)]
+```
+
+| Слой | Работа |
+|------|--------|
+| Backend | Read API: `GET /api/apply-jobs`, `GET /api/applications`, `GET /api/applications/:id` (join `Vacancy`); reuse `GET /api/metrics` |
+| Web | Scaffold `apps/web` (Vite, React, TypeScript, Tailwind): Queue + Applications; metrics strip; cover-letter modal |
+| Infra | Vite proxy `/api` → backend; root scripts; optional Compose static service later |
+
+**UX (зафиксировано):**
+
+- Две страницы с таблицами: Queue (`ApplyJob`), Applications (`Application` + vacancy)
+- Клик по письму → модалка с полным текстом; повторный клик / Esc / backdrop → закрыть
+- Без mutate с UI в этой фазе (no skip / retry / trigger workflows)
+
+**Структура `apps/web` (минимум):** `api/`, `pages/`, `components/`, `types/`
+
+**Done when:** локально видны pending queue и applications с письмом; polling очереди; границы слоёв соблюдены; чекбоксы Phase 7 в `ROADMAP.md` закрыты.
+
+---
+
 ## Принципы на всех фазах
 
 - Тонкие контроллеры; Prisma только в repositories (`.cursor/rules/02-backend.mdc`)
 - Playwright без бизнес-решений (`.cursor/rules/03-playwright.mdc`)
 - Один n8n workflow = один процесс (`.cursor/rules/04-n8n.mdc`)
+- Ops UI без бизнес-логики (`.cursor/rules/09-web.mdc`)
 - После каждой фазы: обновить чекбоксы в `ROADMAP.md`; review по `.cursor/rules/07-code-review.mdc`
 - Не прыгать через фазы: feature-логику вакансий не начинать, пока Phase 1 не принят
 
@@ -178,3 +209,4 @@ sequenceDiagram
 5. ~~**Phase 4** — Resume maintenance~~
 6. ~~**Phase 5** — Messaging (chat + follow-up)~~
 7. ~~**Phase 6** — Hardening~~
+8. ~~**Phase 7** — Ops UI (`apps/web` + read API + CI/CD)~~

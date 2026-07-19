@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApplicationStatus,
+  ApplyJobStatus,
   Prisma,
   VacancyStatus,
   WorkflowName,
@@ -138,7 +139,12 @@ export class ApplyToVacancyUseCase {
         }));
       applyJobId = job.id;
     }
-    await this.applyJobs.markRunning(applyJobId);
+    const existingJob = await this.applyJobs.findById(applyJobId);
+    if (existingJob?.status === ApplyJobStatus.RUNNING) {
+      await this.applyJobs.touchRunning(applyJobId);
+    } else {
+      await this.applyJobs.markRunning(applyJobId);
+    }
     const run = await this.prisma.workflowRun.create({
       data: {
         workflow: WorkflowName.APPLY_WORKER,

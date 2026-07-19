@@ -1,15 +1,17 @@
 {
   "name": "Apply Worker",
   "meta": {
-    "trigger": "queue (BullMQ) + optional HTTP",
-    "responsibility": "orchestration-only"
+    "schedule": "Every few minutes during working hours",
+    "responsibility": "orchestration-only",
+    "notes": "Paces apply via HTTP; queue lives in Postgres ApplyJob"
   },
   "nodesHint": [
-    "Preferred: Backend BullMQ worker processes apply jobs automatically",
-    "Optional manual: HTTP POST {{$env.BACKEND_API_URL}}/workflows/apply",
-    "Body: { \"vacancyId\": \"<uuid>\", \"correlationId\": \"<workflow-run-id>\" }",
-    "correlationId is required for tracing across n8n → backend → Playwright",
-    "Enable HTTP node retries (3x, exponential backoff) on 5xx / network errors",
-    "Idempotent: unique application per vacancy; safe to retry FAILED jobs"
+    "Cron Trigger (e.g. every 3–5 min in working hours)",
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/apply-next",
+    "Body: { \"correlationId\": \"{{$execution.id}}\" }",
+    "On timeout retry: pass applyJobId from previous successful claim response",
+    "Empty queue returns status EMPTY (do not treat as error)",
+    "Manual smoke: POST /workflows/apply with vacancyId",
+    "Retries on 5xx / network; Error Workflow on failure"
   ]
 }

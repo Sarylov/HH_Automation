@@ -3,6 +3,7 @@ import { WorkflowName } from '@prisma/client';
 import { WorkflowRunRepository } from '../repositories/workflow-run.repository';
 import { ScanVacanciesUseCase } from '../../vacancies/use-cases/scan-vacancies.use-case';
 import { ApplyToVacancyUseCase } from '../../vacancies/use-cases/apply-to-vacancy.use-case';
+import { ApplyNextUseCase } from '../../vacancies/use-cases/apply-next.use-case';
 import { MaintainResumesUseCase } from '../../resumes/use-cases/maintain-resumes.use-case';
 import { OptimizeResumesUseCase } from '../../resumes/use-cases/optimize-resumes.use-case';
 import { ProcessChatsUseCase } from '../../messaging/use-cases/process-chats.use-case';
@@ -13,6 +14,7 @@ export type WorkflowKey =
   | 'resume-optimizer'
   | 'vacancy-scanner'
   | 'apply'
+  | 'apply-next'
   | 'chat-processor'
   | 'follow-up';
 
@@ -27,6 +29,7 @@ export type TriggerWorkflowInput = {
   searchPeriod?: number;
   searchField?: 'name' | 'company_name' | 'description';
   vacancyId?: string;
+  applyJobId?: string;
   limit?: number;
 };
 
@@ -35,6 +38,7 @@ const WORKFLOW_MAP: Record<WorkflowKey, WorkflowName> = {
   'resume-optimizer': WorkflowName.RESUME_OPTIMIZER,
   'vacancy-scanner': WorkflowName.VACANCY_SCANNER,
   apply: WorkflowName.APPLY_WORKER,
+  'apply-next': WorkflowName.APPLY_WORKER,
   'chat-processor': WorkflowName.CHAT_PROCESSOR,
   'follow-up': WorkflowName.FOLLOW_UP_WORKER,
 };
@@ -47,6 +51,7 @@ export class TriggerWorkflowUseCase {
     private readonly workflowRuns: WorkflowRunRepository,
     private readonly scanVacancies: ScanVacanciesUseCase,
     private readonly applyToVacancy: ApplyToVacancyUseCase,
+    private readonly applyNext: ApplyNextUseCase,
     private readonly maintainResumes: MaintainResumesUseCase,
     private readonly optimizeResumes: OptimizeResumesUseCase,
     private readonly processChats: ProcessChatsUseCase,
@@ -74,6 +79,13 @@ export class TriggerWorkflowUseCase {
       }
       return this.applyToVacancy.execute({
         vacancyId: input.vacancyId,
+        correlationId: input.correlationId,
+      });
+    }
+
+    if (key === 'apply-next') {
+      return this.applyNext.execute({
+        applyJobId: input.applyJobId,
         correlationId: input.correlationId,
       });
     }

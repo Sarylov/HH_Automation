@@ -3,7 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { LlmModule } from './infrastructure/llm/llm.module';
-import { QueueModule } from './infrastructure/queue/queue.module';
 import { HardeningModule } from './modules/hardening/hardening.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
@@ -30,7 +29,6 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
     }),
     PrismaModule,
     LlmModule,
-    QueueModule,
     HardeningModule,
     AuthModule,
     VacanciesModule,

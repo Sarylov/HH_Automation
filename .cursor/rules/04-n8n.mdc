@@ -7,10 +7,11 @@ alwaysApply: false
 # n8n Rules
 
 - One workflow = one responsibility (one business process)
-- Avoid large multi-purpose workflows; split and chain via HTTP/queue
+- Avoid large multi-purpose workflows; split and chain via HTTP
 - **Business logic lives in Backend** — n8n only schedules and coordinates
 - Enable retries on HTTP/nodes that call backend
 - Configure Error Workflow for failure notification
-- Prefer queue-backed triggers for Apply Worker and similar jobs
+- Apply pacing: cron → `POST /workflows/apply-next` (claim oldest Postgres ApplyJob)
+- On apply-next retry after timeout, pass the same `applyJobId` from the previous response
 - Pass stable IDs and correlation IDs in payloads for observability
 - Do not embed LLM prompts or scraping steps inside n8n

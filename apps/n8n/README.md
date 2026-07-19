@@ -11,6 +11,9 @@ Rules:
 
 See `docs/processes.md` for the process catalog.
 
+Apply pacing: n8n cron → `POST /workflows/apply-next` (claims oldest Postgres `ApplyJob`).
+Scanner: typically once per day with `enqueue: true`.
+
 ## Traefik (server)
 
 ```bash

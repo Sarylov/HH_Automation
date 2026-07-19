@@ -6,9 +6,9 @@
 
 ## Phase 0 — Foundation
 
-- [x] Monorepo layout (`apps/backend`, `apps/playwright`, `apps/n8n`)
+- [x] Monorepo layout (`apps/backend`, `apps/playwright`, `apps/n8n`; `apps/web` in Phase 7)
 - [x] Cursor rules and prompts
-- [x] Docker Compose (PostgreSQL, Redis, n8n)
+- [x] Docker Compose (PostgreSQL, n8n; Redis removed)
 - [x] NestJS + Prisma scaffolding
 - [x] Playwright TypeScript scaffolding
 - [x] Phased implementation plan saved (`docs/IMPLEMENTATION_PLAN.md` + rule `08-implementation-plan.mdc`)
@@ -27,9 +27,9 @@
 
 - [x] Prisma: `Vacancy`, `Application`, `ApplyJob`
 - [x] Vacancy Scanner + duplicate upsert
-- [x] BullMQ apply queue
+- [x] Apply queue = Postgres `ApplyJob` (BullMQ/Redis removed; n8n `apply-next`)
 - [x] Apply Worker skeleton (no LLM yet)
-- [x] n8n scanner cron + apply consumer stubs
+- [x] n8n scanner + apply-next stubs
 
 ## Phase 3 — Applications & cover letters
 
@@ -55,6 +55,16 @@
 - [x] `DRY_RUN` E2E mode
 - [x] Production deployment runbook
 
+## Phase 7 — Ops UI (`apps/web`)
+
+- [x] Backend read API: list apply-jobs, list/get applications (+ vacancy join)
+- [x] Scaffold `apps/web` (Vite, React, TypeScript, Tailwind)
+- [x] Queue page (ApplyJob table + metrics strip)
+- [x] Applications page (table: when, vacancy, status; cover letter → modal toggle)
+- [x] Dev proxy `/api` → backend; root scripts / optional Compose service
+- [x] Docs: `apps/web/README.md`, docker/runbook notes
+- [x] Docker `hh-web` + Traefik `WEB_DOMAIN` + CI/CD GHCR deploy
+
 ---
 
-**Текущий фокус:** Phase 6 complete — ops hardening in place.
+**Текущий фокус:** Phase 7 complete — Ops UI live (read-only).

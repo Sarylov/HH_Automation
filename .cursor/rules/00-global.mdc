@@ -13,5 +13,5 @@ alwaysApply: true
 - Prefer small, single-purpose modules/files
 - Log every meaningful action (start, success, failure) with structured context
 - All configuration via environment variables; never hardcode secrets or URLs
-- Do not mix layers: orchestration ≠ business logic ≠ browser automation ≠ LLM text
+- Do not mix layers: orchestration ≠ business logic ≠ browser automation ≠ LLM text ≠ UI display
 - Prefer idempotent, restartable operations

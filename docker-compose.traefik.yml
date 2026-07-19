@@ -6,8 +6,8 @@
 #   1. External Docker network shared with Traefik (default name: proxy)
 #      docker network ls | grep proxy
 #      docker network create proxy   # only if missing; Traefik must use the same network
-#   2. DNS A/CNAME for N8N_DOMAIN → server IP
-#   3. .env: N8N_DOMAIN, N8N_HOST, N8N_PROTOCOL=https, WEBHOOK/EDITOR URLs
+#   2. DNS A/CNAME for N8N_DOMAIN and WEB_DOMAIN → server IP
+#   3. .env: N8N_DOMAIN, WEB_DOMAIN, N8N_HOST, N8N_PROTOCOL=https, WEBHOOK/EDITOR URLs
 #   4. TRAEFIK_ENTRYPOINT / TRAEFIK_CERT_RESOLVER must match your Traefik config
 
 services:
@@ -23,6 +23,19 @@ services:
       - traefik.http.routers.hh-n8n.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
       - traefik.http.routers.hh-n8n.service=hh-n8n
       - traefik.http.services.hh-n8n.loadbalancer.server.port=5678
+
+  web:
+    networks:
+      traefik: {}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-proxy}
+      - traefik.http.routers.hh-web.rule=Host(`${WEB_DOMAIN:?set WEB_DOMAIN in .env}`)
+      - traefik.http.routers.hh-web.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.hh-web.tls=true
+      - traefik.http.routers.hh-web.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}
+      - traefik.http.routers.hh-web.service=hh-web
+      - traefik.http.services.hh-web.loadbalancer.server.port=80
 
 networks:
   traefik:
