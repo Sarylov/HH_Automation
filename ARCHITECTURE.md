@@ -38,8 +38,8 @@ Controller → UseCase → Repository → PostgreSQL (Prisma)
 |---------|-------------------|------------------|
 | Resume Maintainer | Every hour | n8n → `POST /workflows/resume-maintainer` |
 | Resume Optimizer | Every 3 days | n8n → `POST /workflows/resume-optimizer` |
-| Vacancy Scanner | Every 15–20 min (working hours) | n8n → `POST /workflows/vacancy-scanner` |
-| Apply Worker | Queue | n8n/queue → `POST /workflows/apply` |
+| Vacancy Scanner | Once per day (working hours) | n8n → `POST /workflows/vacancy-scanner` |
+| Apply Worker | n8n cron pace | n8n → `POST /workflows/apply-next` (or `apply` + vacancyId for smoke) |
 | Chat Processor | Every few minutes | n8n → `POST /workflows/chat-processor` |
 | Follow-up Worker | Once per day | n8n → `POST /workflows/follow-up` |
 | Health Check | Every 30 minutes | n8n → `GET /health` (+ deep checks) |
@@ -48,8 +48,7 @@ Each process must be **independent**, **restartable**, **idempotent**, and **obs
 
 ## Data stores
 
-- **PostgreSQL** — source of truth (vacancies, applications, chats, resumes, jobs)
-- **Redis** — optional queues / locks for workers
+- **PostgreSQL** — source of truth (vacancies, applications, apply jobs, chats, resumes, workflow runs)
 
 ## Observability
 

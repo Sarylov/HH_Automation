@@ -19,22 +19,6 @@ services:
     networks:
       default: {}
 
-  redis:
-    image: redis:7-alpine
-    container_name: hh-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - hh_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      default: {}
-
   playwright:
     image: ghcr.io/${GHCR_OWNER:-local}/hh-playwright:${IMAGE_TAG:-latest}
     build:
@@ -78,15 +62,12 @@ services:
       PORT: 3000
       TZ: ${TZ:-Europe/Moscow}
       DATABASE_URL: postgresql://${POSTGRES_USER:-hh}:${POSTGRES_PASSWORD:-hh_secret}@postgres:5432/${POSTGRES_DB:-hh_automation}?schema=public
-      REDIS_URL: redis://redis:6379
       PLAYWRIGHT_BASE_URL: http://playwright:3100
       PLAYWRIGHT_STORAGE_STATE_PATH: /data/.auth/storage-state.json
     volumes:
       - ./apps/playwright/.auth:/data/.auth:ro
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
       playwright:
         condition: service_started
@@ -130,5 +111,4 @@ services:
 
 volumes:
   hh_postgres_data:
-  hh_redis_data:
   hh_n8n_data:

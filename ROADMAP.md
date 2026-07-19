@@ -8,7 +8,7 @@
 
 - [x] Monorepo layout (`apps/backend`, `apps/playwright`, `apps/n8n`)
 - [x] Cursor rules and prompts
-- [x] Docker Compose (PostgreSQL, Redis, n8n)
+- [x] Docker Compose (PostgreSQL, n8n; Redis removed)
 - [x] NestJS + Prisma scaffolding
 - [x] Playwright TypeScript scaffolding
 - [x] Phased implementation plan saved (`docs/IMPLEMENTATION_PLAN.md` + rule `08-implementation-plan.mdc`)
@@ -27,9 +27,9 @@
 
 - [x] Prisma: `Vacancy`, `Application`, `ApplyJob`
 - [x] Vacancy Scanner + duplicate upsert
-- [x] BullMQ apply queue
+- [x] Apply queue = Postgres `ApplyJob` (BullMQ/Redis removed; n8n `apply-next`)
 - [x] Apply Worker skeleton (no LLM yet)
-- [x] n8n scanner cron + apply consumer stubs
+- [x] n8n scanner + apply-next stubs
 
 ## Phase 3 — Applications & cover letters
 

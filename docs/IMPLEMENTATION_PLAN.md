@@ -7,7 +7,7 @@
 ## Зафиксированные решения
 
 - Оркестрация только в **n8n**; бизнес-логика в **NestJS**; браузер только в **Playwright**
-- Очередь Apply Worker: **BullMQ + Redis**
+- Очередь Apply: **Postgres `ApplyJob`** + n8n **`apply-next`** (без Redis/BullMQ)
 - Auth hh.ru: **Playwright session** (`storageState`), без официального HH API на старте
 - LLM: OpenAI-compatible adapter, structured JSON, low temperature
 
@@ -51,7 +51,7 @@ flowchart TB
 **Цель:** локальный стенд поднимается без сюрпризов.
 
 - Скопировать `.env.example` → `.env` и `apps/backend/.env` (`DATABASE_URL` под Compose)
-- `docker compose up -d` (Postgres, Redis, n8n)
+- `docker compose up -d` (Postgres, n8n; backend/playwright as needed)
 - `prisma migrate dev --name init` (модель `WorkflowRun` в `apps/backend/prisma/schema.prisma`)
 - Проверить: `GET /api/health`, stub `POST /api/workflows/*`, smoke Playwright
 
@@ -85,25 +85,24 @@ sequenceDiagram
   participant Backend
   participant PW as Playwright
   participant DB as Postgres
-  participant Q as RedisBullMQ
-  N8n->>Backend: POST vacancy-scanner
+  N8n->>Backend: POST vacancy-scanner enqueue true
   Backend->>PW: search vacancies
   PW-->>Backend: raw vacancy list
-  Backend->>DB: upsert by externalId
-  Backend->>Q: enqueue new APPLY jobs
-  N8n->>Backend: POST apply vacancyId
-  Backend->>PW: open vacancy stub apply
-  Backend->>DB: save Application SKIPPED_or_STUB
+  Backend->>DB: upsert Vacancy + ApplyJob PENDING
+  N8n->>Backend: POST apply-next
+  Backend->>DB: claim oldest ApplyJob
+  Backend->>PW: open vacancy apply
+  Backend->>DB: save Application
 ```
 
 | Слой | Работа |
 |------|--------|
 | Prisma | `Vacancy`, `Application`, `ApplyJob` (status: PENDING/RUNNING/DONE/FAILED), unique `externalId` |
-| Backend | `VacancyScannerUseCase`, `EnqueueApplyUseCase`, `ApplyWorkerUseCase` (skeleton) |
+| Backend | `ScanVacanciesUseCase`, `ApplyNextUseCase`, `ApplyToVacancyUseCase` |
 | Playwright | `actions/vacancies`: search, open, read card fields (без решений) |
-| n8n | Cron Vacancy Scanner (15–20 мин, рабочие часы); consumer Apply из очереди / HTTP |
+| n8n | Cron Vacancy Scanner (раз в сутки); cron Apply → `apply-next` |
 
-**Идемпотентность:** upsert по `hhVacancyId`; повторный apply того же id не дублирует отклик.
+**Идемпотентность:** upsert по `hhVacancyId`; повторный apply того же id не дублирует отклик; claim `PENDING→RUNNING` атомарный.
 
 **Done when:** повторный scanner не плодит дубликаты; очередь наполняется; apply stub пишет результат в БД.
 

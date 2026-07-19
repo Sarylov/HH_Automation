@@ -7,7 +7,6 @@ import {
 } from '@prisma/client';
 import { isDryRun } from '../../../infrastructure/config/dry-run';
 import { PlaywrightClient } from '../../../infrastructure/playwright/playwright.client';
-import { ApplyQueueService } from '../../../infrastructure/queue/apply-queue.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { WorkingHoursPolicy } from '../../hardening/policies/working-hours.policy';
 import { VacancyRepository } from '../repositories/vacancy.repository';
@@ -21,7 +20,6 @@ export class ScanVacanciesUseCase {
     private readonly playwright: PlaywrightClient,
     private readonly vacancies: VacancyRepository,
     private readonly applyJobs: ApplyJobRepository,
-    private readonly applyQueue: ApplyQueueService,
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly workingHours: WorkingHoursPolicy,
@@ -177,17 +175,11 @@ export class ScanVacanciesUseCase {
         });
         if (existingApp) continue;
 
-        const job = await this.applyJobs.createPending({
+        await this.applyJobs.createPending({
           vacancyId: result.vacancy.id,
           correlationId,
         });
         await this.vacancies.markQueued(result.vacancy.id);
-        await this.applyQueue.enqueue({
-          applyJobId: job.id,
-          vacancyId: result.vacancy.id,
-          externalId: result.vacancy.externalId,
-          correlationId,
-        });
         enqueued += 1;
       }
 

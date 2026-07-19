@@ -13,7 +13,6 @@
 | Name | Role |
 |------|------|
 | `hh-postgres` | Database |
-| `hh-redis` | Queue |
 | `hh-playwright` | Browser service (`:3100`) |
 | `hh-backend` | API (`:3000`), migrates DB on start |
 | `hh-n8n` | Orchestration UI (via Traefik) |
@@ -89,13 +88,13 @@ docker compose up -d
 |----------|--------|
 | `GHCR_OWNER` / `IMAGE_TAG` | Match GHCR images |
 | `DATABASE_URL` | Overridden inside compose to `@postgres` for backend |
-| `REDIS_URL` | Overridden to `redis://redis:6379` for backend |
 | `PLAYWRIGHT_BASE_URL` | Overridden to `http://playwright:3100` for backend |
 | `BACKEND_API_URL` | `http://backend:3000/api` for n8n |
 | `LLM_*` | Required for apply / chat / resume optimize |
 | `DRY_RUN` | `true` for first smoke; `false` for live |
 | `WORKING_HOURS_*` | Gate scanner/apply |
-| `APPLY_MAX_PER_HOUR` / `APPLY_MAX_PER_DAY` | Anti-ban caps |
+| `APPLY_MAX_PER_HOUR` / `APPLY_MAX_PER_DAY` | Anti-ban caps (in-memory per process) |
+| `APPLY_JOB_STUCK_MINUTES` | Reclaim stuck RUNNING in apply-next (default 30) |
 | `HH_RESUME_IDS` | Two resumes for optimizer |
 | `N8N_DOMAIN` / `TRAEFIK_*` | Public n8n via Traefik |
 
@@ -131,8 +130,8 @@ Import/create workflows from `apps/n8n/workflows/*.stub.json` hints:
 ## Smoke (DRY_RUN E2E)
 
 1. `DRY_RUN=true`
-2. `POST /api/workflows/vacancy-scanner`
-3. Wait for apply jobs or `POST /api/workflows/apply` with a `vacancyId`
+2. `POST /api/workflows/vacancy-scanner` with `enqueue: true`
+3. `POST /api/workflows/apply-next` (or `apply` + `vacancyId` for a single smoke)
 4. Confirm Application has letter/analysis, status `STUB`, no real “Откликнуться” click
 5. Optional: `resume-maintainer`, `chat-processor` with dry-run
 

@@ -5,7 +5,6 @@ Root `docker-compose.yml` runs:
 | Service | Image | Notes |
 |---------|--------|--------|
 | **postgres** | `postgres:16-alpine` | app schema `public`, n8n schema `n8n` |
-| **redis** | `redis:7-alpine` | BullMQ / locks |
 | **playwright** | `ghcr.io/$GHCR_OWNER/hh-playwright` | Chromium automation; `shm_size=1gb` |
 | **backend** | `ghcr.io/$GHCR_OWNER/hh-backend` | Nest API; runs `prisma migrate deploy` on start |
 | **n8n** | `n8nio/n8n` | orchestration UI (`127.0.0.1:5678` locally) |

@@ -65,6 +65,10 @@ class TriggerWorkflowDto {
   vacancyId?: string;
 
   @IsOptional()
+  @IsUUID()
+  applyJobId?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(50)
@@ -76,6 +80,7 @@ const ALLOWED: ReadonlySet<WorkflowKey> = new Set([
   'resume-optimizer',
   'vacancy-scanner',
   'apply',
+  'apply-next',
   'chat-processor',
   'follow-up',
 ]);

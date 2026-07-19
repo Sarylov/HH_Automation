@@ -1,13 +1,15 @@
 {
   "name": "Vacancy Scanner",
   "meta": {
-    "schedule": "Every 15-20 minutes during working hours",
-    "responsibility": "orchestration-only"
+    "schedule": "Once per day during working hours",
+    "responsibility": "orchestration-only",
+    "notes": "enqueue:true creates Postgres ApplyJob PENDING only"
   },
   "nodesHint": [
-    "Cron Trigger (working hours, */15 or */20)",
+    "Cron Trigger (daily, e.g. 0 9 * * 1-5)",
+    "Optional: two HTTP calls (remote Russia + Spb area) with different body",
     "HTTP Request POST {{$env.BACKEND_API_URL}}/workflows/vacancy-scanner",
-    "Body: { \"correlationId\": \"{{$execution.id}}\", \"enqueue\": true }",
+    "Body: { \"correlationId\": \"{{$execution.id}}\", \"enqueue\": true, \"workFormat\": \"REMOTE\" }",
     "Retries enabled",
     "Error Workflow on failure"
   ]

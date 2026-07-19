@@ -21,7 +21,7 @@ Full details: [ARCHITECTURE.md](./ARCHITECTURE.md)
 | Orchestration | n8n |
 | Backend | NestJS, TypeScript, Prisma, PostgreSQL |
 | Automation | Playwright |
-| Queues / cache | Redis |
+| Apply queue | Postgres `ApplyJob` + n8n `apply-next` |
 | Infra | Docker Compose |
 
 ## Quick start
@@ -41,7 +41,7 @@ docker compose build backend playwright
 docker compose up -d
 ```
 
-Starts PostgreSQL, Redis, Playwright, Backend, and n8n.
+Starts PostgreSQL, Playwright, Backend, and n8n.
 
 Server + Traefik: see [docs/runbook-deploy.md](./docs/runbook-deploy.md) and [docker/README.md](./docker/README.md).
 

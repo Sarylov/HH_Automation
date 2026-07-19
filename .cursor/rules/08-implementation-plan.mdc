@@ -13,7 +13,7 @@ Also read: `ARCHITECTURE.md`, `ROADMAP.md`, `AGENTS.md`.
 
 - Before implementing features, check the current phase in `docs/IMPLEMENTATION_PLAN.md` and `ROADMAP.md`
 - Do not skip phases (e.g. no vacancy scraping before Phase 1 auth/health is done)
-- Respect locked decisions: n8n = orchestration, NestJS = business logic, Playwright = browser only, BullMQ+Redis queue, Playwright `storageState` auth, OpenAI-compatible LLM
+- Respect locked decisions: n8n = orchestration, NestJS = business logic, Playwright = browser only, Postgres ApplyJob + n8n apply-next (no Redis/BullMQ), Playwright `storageState` auth, OpenAI-compatible LLM
 - After finishing a phase, update checkboxes in `ROADMAP.md`
 - Keep changes aligned with `.cursor/rules/01-architecture.mdc`
-- Current focus: Phase 0–6 complete (hardening done)
+- Current focus: Phase 0–6 complete; apply paced by n8n `apply-next`
