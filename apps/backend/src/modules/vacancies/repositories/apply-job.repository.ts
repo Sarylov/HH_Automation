@@ -1,7 +1,24 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApplyJobStatus, type ApplyJob } from '@prisma/client';
+import {
+  ApplyJobStatus,
+  type ApplyJob,
+  type Vacancy,
+} from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import {
+  decodeCreatedAtCursor,
+  encodeCreatedAtCursor,
+} from '../lib/list-cursor';
+
+export type ApplyJobWithVacancy = ApplyJob & {
+  vacancy: Pick<Vacancy, 'id' | 'title' | 'company' | 'url' | 'salary'>;
+};
+
+export type ListApplyJobsResult = {
+  items: ApplyJobWithVacancy[];
+  nextCursor: string | null;
+};
 
 @Injectable()
 export class ApplyJobRepository {
@@ -22,6 +39,56 @@ export class ApplyJobRepository {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async list(input: {
+    status?: ApplyJobStatus;
+    limit: number;
+    cursor?: string;
+  }): Promise<ListApplyJobsResult> {
+    const decoded = input.cursor
+      ? decodeCreatedAtCursor(input.cursor)
+      : null;
+    if (input.cursor && !decoded) {
+      throw new BadRequestException('Invalid cursor');
+    }
+
+    const rows = await this.prisma.applyJob.findMany({
+      where: {
+        ...(input.status ? { status: input.status } : {}),
+        ...(decoded
+          ? {
+              OR: [
+                { queuedAt: { gt: decoded.at } },
+                { queuedAt: decoded.at, id: { gt: decoded.id } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        vacancy: {
+          select: {
+            id: true,
+            title: true,
+            company: true,
+            url: true,
+            salary: true,
+          },
+        },
+      },
+      orderBy: [{ queuedAt: 'asc' }, { id: 'asc' }],
+      take: input.limit + 1,
+    });
+
+    const hasMore = rows.length > input.limit;
+    const page = hasMore ? rows.slice(0, input.limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor =
+      hasMore && last
+        ? encodeCreatedAtCursor(last.queuedAt, last.id)
+        : null;
+
+    return { items: page, nextCursor };
   }
 
   async createPending(input: {

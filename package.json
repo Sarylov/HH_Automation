@@ -7,11 +7,14 @@
     "docker:up": "docker compose up -d",
     "docker:up:traefik": "docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d",
     "docker:down": "docker compose down",
-    "docker:build": "docker compose build backend playwright",
+    "docker:build": "docker compose build backend playwright web",
     "backend:dev": "npm run start:dev --prefix apps/backend",
     "backend:build": "npm run build --prefix apps/backend",
     "playwright:start": "npm run start --prefix apps/playwright",
-    "playwright:typecheck": "npm run typecheck --prefix apps/playwright"
+    "playwright:typecheck": "npm run typecheck --prefix apps/playwright",
+    "web:dev": "npm run dev --prefix apps/web",
+    "web:build": "npm run build --prefix apps/web",
+    "web:typecheck": "npm run typecheck --prefix apps/web"
   },
   "engines": {
     "node": ">=20"

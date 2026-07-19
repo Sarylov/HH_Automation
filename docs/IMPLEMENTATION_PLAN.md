@@ -10,6 +10,8 @@
 - Очередь Apply: **Postgres `ApplyJob`** + n8n **`apply-next`** (без Redis/BullMQ)
 - Auth hh.ru: **Playwright session** (`storageState`), без официального HH API на старте
 - LLM: OpenAI-compatible adapter, structured JSON, low temperature
+- Ops UI: **`apps/web`** (Vite + React + Tailwind); read-only; данные только через Backend API
+- UX Ops UI: две страницы-таблицы (Queue, Applications); сопроводительное письмо — модалка по клику (повторный клик / Esc / backdrop закрывает)
 
 ## Порядок фаз
 
@@ -160,11 +162,41 @@ sequenceDiagram
 
 ---
 
+## Phase 7 — Ops UI
+
+**Цель:** видеть очередь `ApplyJob` и отклики `Application` (когда, вакансия, статус, сопроводительное письмо) без SQL и n8n.
+
+```mermaid
+flowchart LR
+  Web[apps/web] -->|GET read API| Backend
+  N8n[n8n] -->|POST workflows| Backend
+  Backend --> DB[(Postgres)]
+```
+
+| Слой | Работа |
+|------|--------|
+| Backend | Read API: `GET /api/apply-jobs`, `GET /api/applications`, `GET /api/applications/:id` (join `Vacancy`); reuse `GET /api/metrics` |
+| Web | Scaffold `apps/web` (Vite, React, TypeScript, Tailwind): Queue + Applications; metrics strip; cover-letter modal |
+| Infra | Vite proxy `/api` → backend; root scripts; optional Compose static service later |
+
+**UX (зафиксировано):**
+
+- Две страницы с таблицами: Queue (`ApplyJob`), Applications (`Application` + vacancy)
+- Клик по письму → модалка с полным текстом; повторный клик / Esc / backdrop → закрыть
+- Без mutate с UI в этой фазе (no skip / retry / trigger workflows)
+
+**Структура `apps/web` (минимум):** `api/`, `pages/`, `components/`, `types/`
+
+**Done when:** локально видны pending queue и applications с письмом; polling очереди; границы слоёв соблюдены; чекбоксы Phase 7 в `ROADMAP.md` закрыты.
+
+---
+
 ## Принципы на всех фазах
 
 - Тонкие контроллеры; Prisma только в repositories (`.cursor/rules/02-backend.mdc`)
 - Playwright без бизнес-решений (`.cursor/rules/03-playwright.mdc`)
 - Один n8n workflow = один процесс (`.cursor/rules/04-n8n.mdc`)
+- Ops UI без бизнес-логики (`.cursor/rules/09-web.mdc`)
 - После каждой фазы: обновить чекбоксы в `ROADMAP.md`; review по `.cursor/rules/07-code-review.mdc`
 - Не прыгать через фазы: feature-логику вакансий не начинать, пока Phase 1 не принят
 
@@ -177,3 +209,4 @@ sequenceDiagram
 5. ~~**Phase 4** — Resume maintenance~~
 6. ~~**Phase 5** — Messaging (chat + follow-up)~~
 7. ~~**Phase 6** — Hardening~~
+8. ~~**Phase 7** — Ops UI (`apps/web` + read API + CI/CD)~~

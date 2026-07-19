@@ -6,7 +6,7 @@
 
 ## Phase 0 — Foundation
 
-- [x] Monorepo layout (`apps/backend`, `apps/playwright`, `apps/n8n`)
+- [x] Monorepo layout (`apps/backend`, `apps/playwright`, `apps/n8n`; `apps/web` in Phase 7)
 - [x] Cursor rules and prompts
 - [x] Docker Compose (PostgreSQL, n8n; Redis removed)
 - [x] NestJS + Prisma scaffolding
@@ -55,6 +55,16 @@
 - [x] `DRY_RUN` E2E mode
 - [x] Production deployment runbook
 
+## Phase 7 — Ops UI (`apps/web`)
+
+- [x] Backend read API: list apply-jobs, list/get applications (+ vacancy join)
+- [x] Scaffold `apps/web` (Vite, React, TypeScript, Tailwind)
+- [x] Queue page (ApplyJob table + metrics strip)
+- [x] Applications page (table: when, vacancy, status; cover letter → modal toggle)
+- [x] Dev proxy `/api` → backend; root scripts / optional Compose service
+- [x] Docs: `apps/web/README.md`, docker/runbook notes
+- [x] Docker `hh-web` + Traefik `WEB_DOMAIN` + CI/CD GHCR deploy
+
 ---
 
-**Текущий фокус:** Phase 6 complete — ops hardening in place.
+**Текущий фокус:** Phase 7 complete — Ops UI live (read-only).

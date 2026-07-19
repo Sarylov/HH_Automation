@@ -2,12 +2,14 @@
 
 Automated job search and application orchestration for hh.ru.
 
-> Foundation only — no scraping, AI prompts, or business logic yet. See [ROADMAP.md](./ROADMAP.md).
+See [ROADMAP.md](./ROADMAP.md) for phase progress. Current focus: **Phase 0–7 complete** (Ops UI live).
 
 ## Architecture
 
 ```
-n8n → Backend (NestJS) → Playwright → hh.ru
+Ops UI (apps/web) → Backend (NestJS) ← n8n
+                         ↓
+                    Playwright → hh.ru
 ```
 
 Full details: [ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -21,8 +23,19 @@ Full details: [ARCHITECTURE.md](./ARCHITECTURE.md)
 | Orchestration | n8n |
 | Backend | NestJS, TypeScript, Prisma, PostgreSQL |
 | Automation | Playwright |
+| Ops UI | Vite, React, Tailwind (`apps/web`) |
 | Apply queue | Postgres `ApplyJob` + n8n `apply-next` |
 | Infra | Docker Compose |
+
+## Monorepo
+
+```
+apps/
+  backend/     # NestJS API
+  playwright/  # browser automation
+  n8n/         # workflow stubs
+  web/         # Ops UI (Phase 7)
+```
 
 ## Quick start
 
@@ -52,6 +65,8 @@ CI/CD (push to `main` → GHCR → SSH deploy): [`.github/workflows/deploy.yml`]
 - Backend health: `GET http://localhost:3000/api/health`
 - Playwright: `GET http://localhost:3100/health`
 - n8n: http://localhost:5678 — import stubs from `apps/n8n/workflows/`.
+- Ops UI (after Phase 7 scaffold): http://localhost:5173 — see [apps/web/README.md](./apps/web/README.md)
+- Ops UI (Docker): http://127.0.0.1:8080
 
 ### 4. Manual HH login (once)
 
@@ -70,4 +85,4 @@ Prompts: `.cursor/prompts/`
 
 ## Important
 
-Do **not** implement hh.ru scraping or AI prompts until Phase 0 is approved.
+Follow the current phase in [docs/IMPLEMENTATION_PLAN.md](./docs/IMPLEMENTATION_PLAN.md). Do not skip phases or mix layer boundaries (n8n / backend / playwright / LLM / web).

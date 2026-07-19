@@ -1,0 +1,16 @@
+---
+description: Ops UI (apps/web) conventions
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# Web (Ops UI)
+
+- Stack: Vite, React, TypeScript strict, Tailwind
+- Read-only: no business decisions; no direct DB / Playwright / n8n
+- All data via Backend `/api/*`
+- Pages: Queue (`ApplyJob` table), Applications (`Application` + vacancy table)
+- Cover letter: modal on click; second click / Esc / backdrop closes
+- Prefer TanStack Query for list + polling; thin `api/` client
+- No secrets in frontend; env only for API base URL if needed
+- Keep structure small: `api/`, `pages/`, `components/`, `types/`

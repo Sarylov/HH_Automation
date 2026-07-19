@@ -7,16 +7,14 @@ Automate job search and application on hh.ru to maximize interview invitations w
 ## High-level topology
 
 ```
-n8n (orchestration)
-        │
-        ▼
-Backend API (NestJS — business logic, DB, LLM)
-        │
-        ▼
-Playwright Automation (browser only)
-        │
-        ▼
-      hh.ru
+Ops UI (apps/web) ──GET──► Backend API
+n8n (orchestration) ──POST──► Backend API (NestJS — business logic, DB, LLM)
+                                    │
+                                    ▼
+                          Playwright Automation (browser only)
+                                    │
+                                    ▼
+                                  hh.ru
 ```
 
 | Service | Owns | Does not own |
@@ -25,6 +23,7 @@ Playwright Automation (browser only)
 | **Backend** | Use cases, Prisma/PostgreSQL, LLM calls, decisions | Browser DOM, cron scheduling |
 | **Playwright** | Login, clicks, read/send messages, raise resume | Filtering, AI, scheduling |
 | **LLM** | Structured text generation | Side effects |
+| **Web** | Read-only ops UI (queue, applications, metrics) | Business logic, DB, Playwright, mutations |
 
 ## Internal backend layering
 
@@ -46,6 +45,14 @@ Controller → UseCase → Repository → PostgreSQL (Prisma)
 
 Each process must be **independent**, **restartable**, **idempotent**, and **observable**.
 
+## Ops UI (Phase 7)
+
+- App: `apps/web` — Vite + React + Tailwind
+- Data: Backend read API only (`/api/apply-jobs`, `/api/applications`, `/api/metrics`)
+- Pages: Queue (`ApplyJob` table), Applications (`Application` + vacancy table)
+- Cover letter: modal on click; second click / Esc / backdrop closes
+- No mutations from UI in Phase 7 (no skip / retry / trigger workflows)
+
 ## Data stores
 
 - **PostgreSQL** — source of truth (vacancies, applications, apply jobs, chats, resumes, workflow runs)
@@ -56,9 +63,4 @@ Each process must be **independent**, **restartable**, **idempotent**, and **obs
 - Health endpoint(s)
 - Screenshots on Playwright failures
 - Error workflow in n8n for alerts
-
-## Out of scope (foundation phase)
-
-- Real hh.ru scraping
-- AI prompt implementation
-- Full business logic of workers
+- Ops UI for queue and application inspection

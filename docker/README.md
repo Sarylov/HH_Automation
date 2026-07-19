@@ -8,20 +8,21 @@ Root `docker-compose.yml` runs:
 | **playwright** | `ghcr.io/$GHCR_OWNER/hh-playwright` | Chromium automation; `shm_size=1gb` |
 | **backend** | `ghcr.io/$GHCR_OWNER/hh-backend` | Nest API; runs `prisma migrate deploy` on start |
 | **n8n** | `n8nio/n8n` | orchestration UI (`127.0.0.1:5678` locally) |
+| **web** | `ghcr.io/$GHCR_OWNER/hh-web` | Ops UI nginx; static + `/api` → backend (`127.0.0.1:8080` locally) |
 
-Dockerfiles: [Dockerfile.backend](./Dockerfile.backend), [Dockerfile.playwright](./Dockerfile.playwright).
+Dockerfiles: [Dockerfile.backend](./Dockerfile.backend), [Dockerfile.playwright](./Dockerfile.playwright), [Dockerfile.web](./Dockerfile.web). Ops UI: [apps/web/README.md](../apps/web/README.md).
 
 Local build (no GHCR):
 
 ```bash
 export GHCR_OWNER=local
-docker compose build backend playwright
+docker compose build backend playwright web
 docker compose up -d
 ```
 
 ## Traefik (existing proxy on the server)
 
-Do **not** add Traefik to this compose — attach n8n to your already-running Traefik network.
+Do **not** add Traefik to this compose — attach n8n and web to your already-running Traefik network.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
@@ -30,7 +31,8 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 | Variable | Example | Must match |
 |----------|---------|------------|
 | `N8N_DOMAIN` | `n8n.example.com` | DNS → server |
-| `N8N_HOST` | same as domain | n8n public host |
+| `WEB_DOMAIN` | `ops.example.com` | DNS → server (Ops UI) |
+| `N8N_HOST` | same as n8n domain | n8n public host |
 | `N8N_PROTOCOL` | `https` | |
 | `N8N_EDITOR_BASE_URL` | `https://n8n.example.com/` | |
 | `N8N_WEBHOOK_URL` | `https://n8n.example.com/` | |

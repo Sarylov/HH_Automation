@@ -64,6 +64,18 @@ jobs:
           cache-from: type=gha,scope=hh-playwright
           cache-to: type=gha,mode=max,scope=hh-playwright
 
+      - name: Build and push web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ steps.ns.outputs.owner }}/hh-web:latest
+            ${{ env.REGISTRY }}/${{ steps.ns.outputs.owner }}/hh-web:${{ steps.ns.outputs.sha_tag }}
+          cache-from: type=gha,scope=hh-web
+          cache-to: type=gha,mode=max,scope=hh-web
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -89,7 +101,7 @@ jobs:
             export GHCR_OWNER="${GHCR_OWNER}"
             export IMAGE_TAG=latest
 
-            docker compose -f docker-compose.yml -f docker-compose.traefik.yml pull backend playwright
+            docker compose -f docker-compose.yml -f docker-compose.traefik.yml pull backend playwright web
             docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
         env:
           GHCR_OWNER: ${{ steps.ns.outputs.owner }}

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Code Review Checklist
 
-- [ ] Layer boundaries respected (n8n / backend / playwright / LLM)
+- [ ] Layer boundaries respected (n8n / backend / playwright / LLM / web)
 - [ ] No `any`; strict TypeScript
 - [ ] Controllers thin; logic in use cases; Prisma only in repositories
 - [ ] Idempotent where retries can fire
@@ -13,5 +13,6 @@ alwaysApply: true
 - [ ] Structured logging present
 - [ ] Errors handled and observable
 - [ ] Playwright: Locator API, no fixed waits, failure screenshots
+- [ ] Web: read-only via Backend API only; no DB / Playwright / n8n from UI
 - [ ] Tests or stubs for new use cases when feasible
 - [ ] Migrations included for schema changes

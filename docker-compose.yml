@@ -109,6 +109,21 @@ services:
     networks:
       default: {}
 
+  web:
+    image: ghcr.io/${GHCR_OWNER:-local}/hh-web:${IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: hh-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      default: {}
+
 volumes:
   hh_postgres_data:
   hh_n8n_data:

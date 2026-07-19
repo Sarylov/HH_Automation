@@ -16,14 +16,17 @@
 | `hh-playwright` | Browser service (`:3100`) |
 | `hh-backend` | API (`:3000`), migrates DB on start |
 | `hh-n8n` | Orchestration UI (via Traefik) |
+| `hh-web` | Ops UI nginx (`:8080` local; Traefik `WEB_DOMAIN`) |
 
-Traefik stays outside this compose.
+Traefik stays outside this compose. See [apps/web/README.md](../apps/web/README.md).
+
+**After deploy:** set `WEB_DOMAIN` in server `.env`, DNS A/CNAME → server, open `https://$WEB_DOMAIN` (queue + applications).
 
 ## GitHub Actions (push to `main`)
 
 Workflow: [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
 
-Flow: build `hh-backend` + `hh-playwright` → push GHCR → SSH → `git pull` + `compose pull/up`.
+Flow: build `hh-backend` + `hh-playwright` + `hh-web` → push GHCR → SSH → `git pull` + `compose pull/up`.
 
 ### Secrets (Settings → Secrets and variables → Actions)
 
@@ -47,7 +50,7 @@ Also set `GHCR_OWNER` in the **server** `.env` so compose resolves the same imag
 
 1. Clone repo to `DEPLOY_PATH`, create `.env` from `.env.example` (prod values).
 2. `mkdir -p apps/playwright/.auth apps/playwright/artifacts` and copy `storage-state.json`.
-3. Ensure Traefik network exists; set `N8N_DOMAIN` / `TRAEFIK_*`.
+3. Ensure Traefik network exists; set `N8N_DOMAIN`, `WEB_DOMAIN`, `TRAEFIK_*`.
 4. If packages are private: `docker login ghcr.io` once (or rely on `GHCR_READ_TOKEN` in Actions).
 5. SSH: install the deploy public key for `DEPLOY_USER`.
 6. First start:
@@ -71,7 +74,7 @@ Or push to `main` and let Actions deploy.
 
 ```bash
 export GHCR_OWNER=local
-docker compose build backend playwright
+docker compose build backend playwright web
 docker compose up -d
 ```
 
@@ -80,7 +83,9 @@ docker compose up -d
 1. `curl -s http://127.0.0.1:3000/api/health` → `status: ok` (or intentional `degraded`)
 2. `curl -s http://127.0.0.1:3100/health` → playwright up
 3. `curl -s http://127.0.0.1:3000/api/metrics` → no unexpected `alerts`
-4. n8n UI: `https://$N8N_DOMAIN`
+4. `curl -s http://127.0.0.1:8080/api/metrics` → Ops UI nginx proxies API
+5. n8n UI: `https://$N8N_DOMAIN`
+6. Ops UI: `https://$WEB_DOMAIN` (queue + applications + cover letter modal)
 
 ## Env checklist (prod)
 
@@ -96,7 +101,8 @@ docker compose up -d
 | `APPLY_MAX_PER_HOUR` / `APPLY_MAX_PER_DAY` | Anti-ban caps (in-memory per process) |
 | `APPLY_JOB_STUCK_MINUTES` | Reclaim stuck RUNNING in apply-next (default 30) |
 | `HH_RESUME_IDS` | Two resumes for optimizer |
-| `N8N_DOMAIN` / `TRAEFIK_*` | Public n8n via Traefik |
+| `N8N_DOMAIN` / `WEB_DOMAIN` / `TRAEFIK_*` | Public n8n + Ops UI via Traefik |
+| `WEB_PORT` | Local bind for Ops UI (default `8080`) |
 
 ## Database backups
 

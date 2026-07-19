@@ -84,3 +84,42 @@ describe('ApplyJobRepository.claimOldestPending', () => {
     await expect(repo.claimOldestPending()).resolves.toBeNull();
   });
 });
+
+describe('ApplyJobRepository.list', () => {
+  it('returns page and nextCursor when more rows exist', async () => {
+    const vacancy = {
+      id: 'vac-1',
+      title: 'Dev',
+      company: 'Acme',
+      url: 'https://hh.ru/1',
+      salary: null,
+    };
+    const row = {
+      id: 'job-1',
+      vacancyId: 'vac-1',
+      status: ApplyJobStatus.PENDING,
+      attempts: 0,
+      lastError: null,
+      correlationId: null,
+      queuedAt: new Date('2026-07-19T10:00:00.000Z'),
+      startedAt: null,
+      finishedAt: null,
+      createdAt: new Date('2026-07-19T10:00:00.000Z'),
+      updatedAt: new Date('2026-07-19T10:00:00.000Z'),
+      vacancy,
+    };
+    const findMany = jest.fn().mockResolvedValue([row, { ...row, id: 'job-2' }]);
+    const repo = new ApplyJobRepository(
+      { applyJob: { findMany } } as never,
+      { get: () => '30' } as never,
+    );
+
+    const result = await repo.list({ limit: 1 });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.id).toBe('job-1');
+    expect(result.nextCursor).toBeTruthy();
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 2 }),
+    );
+  });
+});

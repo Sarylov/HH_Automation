@@ -13,6 +13,7 @@ alwaysApply: true
 | **Backend** | Business logic, DB, AI calls, decisions | Browser automation, cron orchestration |
 | **Playwright** | Login, clicks, read/send DOM actions | Filtering, AI, scheduling decisions |
 | **LLM** | Text generation (letters, chat replies) | Side effects, DB, browser |
+| **Web** | Read-only ops UI (queue, applications) | Business logic, DB, Playwright, mutations |
 
 ## Process requirements
 
@@ -26,5 +27,6 @@ Every workflow/use case must be:
 ## Request flow
 
 ```
+Browser (apps/web) → Backend API (read)
 n8n → Backend API (use case) → Playwright / LLM / DB
 ```

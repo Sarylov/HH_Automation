@@ -17,7 +17,10 @@ async function bootstrap(): Promise<void> {
   app.setGlobalPrefix('api');
 
   const port = Number(process.env.PORT ?? 3000);
-  await app.listen(port);
+  // Bind loopback explicitly so a second process on 127.0.0.1:PORT fails loud
+  // (Windows can otherwise split 0.0.0.0 vs 127.0.0.1 listeners).
+  const host = process.env.HOST ?? '127.0.0.1';
+  await app.listen(port, host);
 }
 
 void bootstrap();

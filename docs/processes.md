@@ -16,6 +16,19 @@ n8n owns scheduling only. Backend owns business logic.
 Scanner with `enqueue: true` creates Postgres `ApplyJob` rows (`PENDING`).  
 `apply-next` claims the oldest pending job and runs one apply. Empty queue returns `{ status: "EMPTY" }`.
 
+## Ops UI (read-only)
+
+App: [`apps/web`](../apps/web/README.md) → Backend API only. Does not call Playwright or n8n.
+
+| View | API |
+|------|-----|
+| Metrics strip | `GET /api/metrics` |
+| Queue | `GET /api/apply-jobs?status=&limit=&cursor=` |
+| Applications | `GET /api/applications?status=&limit=&cursor=` |
+| Application detail / cover letter | `GET /api/applications/:id` (or fields from list); UI modal |
+
+UX: table pages; cover letter opens in a modal (toggle close via second click / Esc / backdrop). No mutations from UI in Phase 7.
+
 ## Ops docs
 
 - Deploy / backups / session rotation: [runbook-deploy.md](./runbook-deploy.md)
