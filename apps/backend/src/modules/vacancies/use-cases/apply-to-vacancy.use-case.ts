@@ -13,6 +13,11 @@ import {
 } from '../../../infrastructure/llm/llm.errors';
 import { LLM_PORT, type LlmPort } from '../../../infrastructure/llm/llm.port';
 import { isDryRun } from '../../../infrastructure/config/dry-run';
+import {
+  isVacancyAnalysisEnabled,
+  skippedVacancyAnalysis,
+} from '../../../infrastructure/config/vacancy-analysis';
+import type { VacancyAnalysis } from '../../../infrastructure/llm/llm.types';
 import { PlaywrightClient } from '../../../infrastructure/playwright/playwright.client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { ActionPacingPolicy } from '../../hardening/policies/action-pacing.policy';
@@ -167,33 +172,41 @@ export class ApplyToVacancyUseCase {
           vacancyStatus: VacancyStatus.FAILED,
         });
       }
-      let analysis;
-      try {
-        analysis = await this.analyzeVacancy.execute({ vacancy, opened });
-      } catch (error) {
-        const reason =
-          error instanceof LlmSchemaError
-            ? 'llm_schema_mismatch'
-            : error instanceof LlmConfigurationError
-              ? 'llm_not_configured'
-              : 'llm_analysis_failed';
-        const message = error instanceof Error ? error.message : reason;
-        return await this.failControlled({
-          applyJobId,
+      let analysis: VacancyAnalysis;
+      if (!isVacancyAnalysisEnabled(this.config)) {
+        analysis = skippedVacancyAnalysis();
+        this.logger.log({
+          msg: 'Vacancy analysis skipped (LLM_VACANCY_ANALYSIS_ENABLED=false)',
           vacancyId: vacancy.id,
-          runId: run.id,
-          correlationId: input.correlationId,
-          reason,
-          errorMessage: message,
+        });
+      } else {
+        try {
+          analysis = await this.analyzeVacancy.execute({ vacancy, opened });
+        } catch (error) {
+          const reason =
+            error instanceof LlmSchemaError
+              ? 'llm_schema_mismatch'
+              : error instanceof LlmConfigurationError
+                ? 'llm_not_configured'
+                : 'llm_analysis_failed';
+          const message = error instanceof Error ? error.message : reason;
+          return await this.failControlled({
+            applyJobId,
+            vacancyId: vacancy.id,
+            runId: run.id,
+            correlationId: input.correlationId,
+            reason,
+            errorMessage: message,
+          });
+        }
+        // Analysis is context for the cover letter only — never skip apply on shouldApply
+        this.logger.log({
+          msg: 'Vacancy analysis used for cover letter (apply gate disabled)',
+          vacancyId: vacancy.id,
+          matchScore: analysis.matchScore,
+          shouldApply: analysis.shouldApply,
         });
       }
-      // Analysis is context for the cover letter only — never skip apply on shouldApply
-      this.logger.log({
-        msg: 'Vacancy analysis used for cover letter (apply gate disabled)',
-        vacancyId: vacancy.id,
-        matchScore: analysis.matchScore,
-        shouldApply: analysis.shouldApply,
-      });
       let coverLetter;
       try {
         coverLetter = await this.generateCoverLetter.execute({
