@@ -187,41 +187,13 @@ export class ApplyToVacancyUseCase {
           errorMessage: message,
         });
       }
-      if (!analysis.shouldApply) {
-        const application = await this.applications.upsertResult({
-          vacancyId: vacancy.id,
-          status: ApplicationStatus.FAILED,
-          analysis,
-          correlationId: input.correlationId,
-          errorMessage: 'analysis_rejected',
-        });
-        await this.applyJobs.markDone(applyJobId);
-        await this.vacancies.markStatus(vacancy.id, VacancyStatus.SKIPPED);
-        await this.prisma.workflowRun.update({
-          where: { id: run.id },
-          data: {
-            status: WorkflowRunStatus.SUCCEEDED,
-            finishedAt: new Date(),
-            metadata: {
-              vacancyId: vacancy.id,
-              externalId: vacancy.externalId,
-              skipped: true,
-              reason: 'analysis_rejected',
-              matchScore: analysis.matchScore,
-            },
-          },
-        });
-        return {
-          accepted: true,
-          implemented: true,
-          workflow: 'apply',
-          runId: run.id,
-          status: 'SKIPPED',
-          applicationId: application.id,
-          reason: 'analysis_rejected',
-          analysis,
-        };
-      }
+      // Analysis is context for the cover letter only — never skip apply on shouldApply
+      this.logger.log({
+        msg: 'Vacancy analysis used for cover letter (apply gate disabled)',
+        vacancyId: vacancy.id,
+        matchScore: analysis.matchScore,
+        shouldApply: analysis.shouldApply,
+      });
       let coverLetter;
       try {
         coverLetter = await this.generateCoverLetter.execute({

@@ -5,7 +5,7 @@ import { searchVacancies } from './actions/vacancies/search.js';
 async function main(): Promise<void> {
   const result = await searchVacancies(loadConfig(), {
     text: process.argv[2] ?? 'frontend',
-    area: process.argv[3] ?? '1',
+    area: process.argv[3] || undefined,
     pages: 1,
   });
   console.log(

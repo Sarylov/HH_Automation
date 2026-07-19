@@ -41,7 +41,8 @@ export class ScanVacanciesUseCase {
     const text =
       input?.text?.trim() ||
       this.config.get<string>('HH_SEARCH_TEXT', 'frontend developer');
-    const area = input?.area ?? this.config.get<string>('HH_SEARCH_AREA', '1');
+    // No default region: omit area unless explicitly passed in the request
+    const area = input?.area?.trim() || undefined;
     const pages = input?.pages ?? Number(this.config.get('HH_SEARCH_PAGES', '1'));
     const excludedText =
       input?.excludedText?.trim() ||

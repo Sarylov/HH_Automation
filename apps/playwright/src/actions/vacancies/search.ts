@@ -94,6 +94,44 @@ async function parseSerpPage(page: Page): Promise<RawVacancy[]> {
   });
 }
 
+/** Prefer 100/page in UI if hh ignores items_on_page; then scroll lazy SERP. */
+async function expandSerpResults(page: Page): Promise<void> {
+  const sizeControls = page.locator(
+    'a[data-qa="pager-page-size"], button[data-qa="pager-page-size"], [data-qa*="page-size"] a, [data-qa*="page-size"] button',
+  );
+  const hundred = sizeControls.filter({ hasText: /^\s*100\s*$/ }).first();
+  if ((await hundred.count()) > 0 && (await hundred.isVisible().catch(() => false))) {
+    await hundred.click();
+    await page
+      .locator('[data-qa="vacancy-serp__vacancy"], [data-qa="serp-item"], a[href*="/vacancy/"]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(() => undefined);
+  }
+
+  let stable = 0;
+  let prev = 0;
+  for (let i = 0; i < 25; i += 1) {
+    const count = await page.locator('a[href*="/vacancy/"]').count();
+    await page.evaluate('window.scrollTo(0, document.body.scrollHeight)');
+    await page
+      .waitForFunction(
+        `document.querySelectorAll('a[href*="/vacancy/"]').length > ${count}`,
+        undefined,
+        { timeout: 800 },
+      )
+      .catch(() => undefined);
+    if (count <= prev) {
+      stable += 1;
+      if (stable >= 3) break;
+    } else {
+      stable = 0;
+    }
+    prev = count;
+  }
+  await page.evaluate('window.scrollTo(0, 0)');
+}
+
 function withDeadline<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -124,7 +162,7 @@ export async function searchVacancies(
   },
 ): Promise<SearchVacanciesResult> {
   const pages = Math.min(Math.max(input.pages ?? 1, 1), 3);
-  const area = input.area ?? process.env.HH_SEARCH_AREA ?? '1';
+  const area = input.area?.trim() || undefined;
   const excludedText =
     input.excludedText?.trim() ||
     process.env.HH_EXCLUDED_TEXT?.trim() ||
@@ -159,10 +197,13 @@ export async function searchVacancies(
         for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
           const searchUrl = new URL(`${config.baseUrl}/search/vacancy`);
           searchUrl.searchParams.set('text', input.text);
-          searchUrl.searchParams.set('area', area);
+          if (area) {
+            searchUrl.searchParams.set('area', area);
+          }
           searchUrl.searchParams.set('page', String(pageIndex));
           searchUrl.searchParams.set('search_field', searchField);
           searchUrl.searchParams.set('search_period', String(searchPeriod));
+          searchUrl.searchParams.set('items_on_page', '100');
           if (excludedText) {
             searchUrl.searchParams.set('excluded_text', excludedText);
           }
@@ -170,12 +211,41 @@ export async function searchVacancies(
             searchUrl.searchParams.set('work_format', workFormat);
           }
 
-          await page.goto(searchUrl.toString(), {
+          const targetUrl = searchUrl.toString();
+          logger.info('Opening vacancy search', {
+            targetUrl,
+            area: area ?? null,
+          });
+
+          await page.goto(targetUrl, {
             waitUntil: 'domcontentloaded',
             timeout: config.navigationTimeoutMs,
           });
 
+          // hh often injects area from cookies/geo when omitted — strip it once
+          if (!area) {
+            const landed = new URL(page.url());
+            if (landed.searchParams.has('area')) {
+              landed.searchParams.delete('area');
+              landed.searchParams.set('items_on_page', '100');
+              logger.info('Stripped injected area from search URL', {
+                finalUrl: landed.toString(),
+              });
+              await page.goto(landed.toString(), {
+                waitUntil: 'domcontentloaded',
+                timeout: config.navigationTimeoutMs,
+              });
+            }
+          }
+
+          await expandSerpResults(page);
+
           const batch = await parseSerpPage(page);
+          logger.info('SERP page parsed', {
+            pageIndex,
+            batchCount: batch.length,
+            finalUrl: page.url(),
+          });
           for (const item of batch) {
             if (seen.has(item.externalId)) continue;
             seen.add(item.externalId);

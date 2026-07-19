@@ -32,7 +32,7 @@ export class WorkingHoursPolicy {
       0,
     );
     const days = this.parseDays(
-      this.config.get<string>('WORKING_DAYS', '1-5'),
+      this.config.get<string>('WORKING_DAYS', '1-7'),
     );
 
     const parts = this.localParts(now, timeZone);

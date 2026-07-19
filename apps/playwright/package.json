@@ -9,6 +9,7 @@
     "dev": "tsx watch src/main.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "auth:manual": "tsx src/auth-manual.ts",
+    "deploy:session": "node --env-file=../../.env -e \"const {execFileSync}=require('child_process');const fs=require('fs');const h=process.env.DEPLOY_SSH_HOST;const r=process.env.DEPLOY_SSH_REMOTE_PATH;if(!h||!r){console.error('Set DEPLOY_SSH_HOST and DEPLOY_SSH_REMOTE_PATH in root .env');process.exit(1);}const local=process.env.PLAYWRIGHT_STORAGE_STATE_PATH||'.auth/storage-state.json';if(!fs.existsSync(local)){console.error('Missing '+local+' — run npm run auth:manual first');process.exit(1);}console.log('scp',local,'->',h+':'+r);execFileSync('scp',[local,h+':'+r],{stdio:'inherit'});\"",
     "search:smoke": "tsx src/search-smoke.ts"
   },
   "engines": {
