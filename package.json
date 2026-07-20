@@ -4,6 +4,8 @@
   "private": true,
   "description": "HH Automation System — monorepo root",
   "scripts": {
+    "start": "concurrently -n backend,playwright,web -c blue,green,magenta \"npm run backend:dev\" \"npm run playwright:dev\" \"npm run web:dev\"",
+    "start:infra": "docker compose up -d postgres",
     "docker:up": "docker compose up -d",
     "docker:up:traefik": "docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d",
     "docker:down": "docker compose down",
@@ -11,10 +13,14 @@
     "backend:dev": "npm run start:dev --prefix apps/backend",
     "backend:build": "npm run build --prefix apps/backend",
     "playwright:start": "npm run start --prefix apps/playwright",
+    "playwright:dev": "npm run dev --prefix apps/playwright",
     "playwright:typecheck": "npm run typecheck --prefix apps/playwright",
     "web:dev": "npm run dev --prefix apps/web",
     "web:build": "npm run build --prefix apps/web",
     "web:typecheck": "npm run typecheck --prefix apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   },
   "engines": {
     "node": ">=20"

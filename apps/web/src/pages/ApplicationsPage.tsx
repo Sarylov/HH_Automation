@@ -29,7 +29,6 @@ export function ApplicationsPage() {
         status: status || undefined,
         limit: 50,
       }),
-    refetchInterval: 15_000,
   });
 
   const items = useMemo(() => query.data?.items ?? [], [query.data]);

@@ -45,7 +45,23 @@ apps/
 cp .env.example .env
 ```
 
-### 2. Infrastructure + apps (Docker)
+### 2. Local dev (host apps + Postgres in Docker)
+
+```bash
+npm install
+npm run start:infra   # Postgres only
+npm start             # backend + playwright + web (hot reload)
+```
+
+| Service | URL |
+|---------|-----|
+| Backend | http://localhost:3000 |
+| Playwright | http://localhost:3100 |
+| Ops UI | http://localhost:5173 |
+
+Install app dependencies once per package if needed: `npm install --prefix apps/backend`, same for `apps/playwright` and `apps/web`.
+
+### 3. Infrastructure + apps (Docker)
 
 ```bash
 # Local: build images and start all services
@@ -60,7 +76,7 @@ Server + Traefik: see [docs/runbook-deploy.md](./docs/runbook-deploy.md) and [do
 
 CI/CD (push to `main` → GHCR → SSH deploy): [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml).
 
-### 3. Verify
+### 4. Verify
 
 - Backend health: `GET http://localhost:3000/api/health`
 - Playwright: `GET http://localhost:3100/health`
@@ -68,7 +84,7 @@ CI/CD (push to `main` → GHCR → SSH deploy): [`.github/workflows/deploy.yml`]
 - Ops UI (after Phase 7 scaffold): http://localhost:5173 — see [apps/web/README.md](./apps/web/README.md)
 - Ops UI (Docker): http://127.0.0.1:8080
 
-### 4. Manual HH login (once)
+### 5. Manual HH login (once)
 
 ```bash
 cd apps/playwright

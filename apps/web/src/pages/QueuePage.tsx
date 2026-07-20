@@ -15,7 +15,6 @@ export function QueuePage() {
         status: status || undefined,
         limit: 50,
       }),
-    refetchInterval: 10_000,
   });
 
   const items = useMemo(() => query.data?.items ?? [], [query.data]);

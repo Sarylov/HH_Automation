@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { MetricsStrip } from './MetricsStrip';
+import { RefreshButton } from './RefreshButton';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded px-3 py-1.5 text-sm font-medium ${
@@ -17,14 +18,17 @@ export function Layout() {
             <div className="text-lg font-semibold tracking-tight">HH Automation</div>
             <div className="text-xs text-zinc-500">Ops UI · read-only</div>
           </div>
-          <nav className="flex gap-2">
-            <NavLink to="/queue" className={linkClass}>
-              Очередь
-            </NavLink>
-            <NavLink to="/applications" className={linkClass}>
-              Отклики
-            </NavLink>
-          </nav>
+          <div className="flex flex-wrap items-center gap-2">
+            <RefreshButton />
+            <nav className="flex gap-2">
+              <NavLink to="/queue" className={linkClass}>
+                Очередь
+              </NavLink>
+              <NavLink to="/applications" className={linkClass}>
+                Отклики
+              </NavLink>
+            </nav>
+          </div>
         </div>
       </header>
       <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
