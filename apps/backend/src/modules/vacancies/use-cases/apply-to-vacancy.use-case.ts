@@ -28,6 +28,7 @@ import { ApplyDelayPolicy } from '../policies/apply-delay.policy';
 import { ApplicationRepository } from '../repositories/application.repository';
 import { ApplyJobRepository } from '../repositories/apply-job.repository';
 import { VacancyRepository } from '../repositories/vacancy.repository';
+import { applyErrorMessage } from '../apply-reasons';
 import { AnalyzeVacancyUseCase } from './analyze-vacancy.use-case';
 import { GenerateCoverLetterUseCase } from './generate-cover-letter.use-case';
 
@@ -249,6 +250,35 @@ export class ApplyToVacancyUseCase {
         coverLetter: coverLetter.letter,
         dryRun,
       });
+      if (applyResult.alreadyApplied) {
+        await this.applyJobs.markDone(applyJobId);
+        await this.prisma.workflowRun.update({
+          where: { id: run.id },
+          data: {
+            status: WorkflowRunStatus.SUCCEEDED,
+            finishedAt: new Date(),
+            metadata: {
+              vacancyId: vacancy.id,
+              externalId: vacancy.externalId,
+              skipped: true,
+              reason: 'already_applied',
+            },
+          },
+        });
+        this.logger.log({
+          msg: 'Apply skipped — already applied on hh.ru',
+          vacancyId: vacancy.id,
+          externalId: vacancy.externalId,
+        });
+        return {
+          accepted: true,
+          implemented: true,
+          skipped: true,
+          workflow: 'apply',
+          runId: run.id,
+          reason: 'already_applied',
+        };
+      }
       if (applyResult.needsManual) {
         const application = await this.applications.upsertResult({
           vacancyId: vacancy.id,
@@ -300,12 +330,14 @@ export class ApplyToVacancyUseCase {
       const applicationStatus = dryRun
         ? ApplicationStatus.STUB
         : ApplicationStatus.APPLIED;
+      const warningMessage = applyErrorMessage(applyResult.reason);
       const application = await this.applications.upsertResult({
         vacancyId: vacancy.id,
         status: applicationStatus,
         coverLetter: coverLetter.letter,
         analysis,
         correlationId: input.correlationId,
+        errorMessage: warningMessage,
         appliedAt: dryRun ? null : new Date(),
       });
       if (!dryRun) {
@@ -326,7 +358,8 @@ export class ApplyToVacancyUseCase {
             externalId: vacancy.externalId,
             dryRun,
             delayMs,
-            alreadyApplied: applyResult.alreadyApplied ?? false,
+            coverLetterAttached: applyResult.coverLetterAttached ?? false,
+            applyReason: applyResult.reason,
             matchScore: analysis.matchScore,
           },
         },
@@ -335,6 +368,8 @@ export class ApplyToVacancyUseCase {
         msg: dryRun ? 'Apply dry-run completed' : 'Apply completed',
         vacancyId: vacancy.id,
         externalId: vacancy.externalId,
+        applyReason: applyResult.reason,
+        coverLetterAttached: applyResult.coverLetterAttached,
       });
       return {
         accepted: true,
@@ -344,7 +379,8 @@ export class ApplyToVacancyUseCase {
         status: dryRun ? 'DRY_RUN' : 'SUCCEEDED',
         applicationId: application.id,
         dryRun,
-        alreadyApplied: applyResult.alreadyApplied,
+        reason: applyResult.reason,
+        warning: warningMessage,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'apply_failed';

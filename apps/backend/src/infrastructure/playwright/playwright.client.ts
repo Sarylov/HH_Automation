@@ -60,6 +60,7 @@ export type PlaywrightApplyVacancyResult = {
   externalId: string;
   url: string;
   applied?: boolean;
+  coverLetterAttached?: boolean;
   needsManual?: boolean;
   dryRun?: boolean;
   alreadyApplied?: boolean;

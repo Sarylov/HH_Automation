@@ -1,3 +1,5 @@
+import { formatApplicationStatus } from '../lib/apply-labels';
+
 const STATUS_STYLES: Record<string, string> = {
   PENDING: 'bg-amber-100 text-amber-900',
   RUNNING: 'bg-sky-100 text-sky-900',
@@ -18,7 +20,7 @@ export function StatusBadge({ status }: Props) {
     <span
       className={`inline-flex rounded px-2 py-0.5 text-xs font-medium tracking-wide ${style}`}
     >
-      {status}
+      {formatApplicationStatus(status)}
     </span>
   );
 }
