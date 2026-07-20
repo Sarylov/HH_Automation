@@ -72,6 +72,7 @@ export function ApplicationsPage() {
                 <th className="px-4 py-2 font-medium">Вакансия</th>
                 <th className="px-4 py-2 font-medium">Компания</th>
                 <th className="px-4 py-2 font-medium">Письмо</th>
+                <th className="px-4 py-2 font-medium">Ошибка</th>
               </tr>
             </thead>
             <tbody>
@@ -110,6 +111,9 @@ export function ApplicationsPage() {
                     ) : (
                       <span className="text-zinc-400">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-2 align-top text-zinc-700" title={app.errorMessage ?? undefined}>
+                    {app.errorMessage ? previewText(app.errorMessage, 100) : '—'}
                   </td>
                 </tr>
               ))}
