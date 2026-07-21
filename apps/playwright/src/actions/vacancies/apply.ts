@@ -4,9 +4,12 @@ import { withPage } from '../../browser/context.js';
 import { createLogger } from '../../logger.js';
 import { humanDelay } from '../../utils/human-delay.js';
 import { captureFailureArtifacts } from '../../utils/screenshot.js';
-import { openVacancy } from './open.js';
 
 const logger = createLogger('vacancies.apply');
+
+function vacancyUrl(config: PlaywrightConfig, externalId: string): string {
+  return `${config.baseUrl}/vacancy/${externalId}`;
+}
 
 /** Max wait for Chat button after clicking Apply (ms). */
 const CHAT_WAIT_MS = 15_000;
@@ -311,27 +314,18 @@ export async function applyToVacancy(
   externalId: string,
   input: ApplyVacancyInput = {},
 ): Promise<ApplyVacancyResult> {
-  const opened = await openVacancy(config, externalId);
-  if (!opened.ok) {
-    return {
-      ok: false,
-      externalId,
-      url: opened.url,
-      reason: opened.reason ?? 'open_failed',
-      screenshotPath: opened.screenshotPath,
-    };
-  }
+  const url = vacancyUrl(config, externalId);
 
   try {
     return await withPage(config, async (page) => {
-      await page.goto(opened.url, { waitUntil: 'domcontentloaded' });
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
 
       if (await isAlreadyApplied(page)) {
         logger.info('Vacancy already applied — skip', { externalId });
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: true,
           alreadyApplied: true,
           reason: 'already_applied',
@@ -345,7 +339,7 @@ export async function applyToVacancy(
         return {
           ok: false,
           externalId,
-          url: opened.url,
+          url,
           needsManual: manualReason !== null,
           reason: manualReason ?? 'apply_button_not_found',
         };
@@ -356,7 +350,7 @@ export async function applyToVacancy(
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: false,
           dryRun: true,
           reason: 'dry_run',
@@ -374,7 +368,7 @@ export async function applyToVacancy(
         return {
           ok: false,
           externalId,
-          url: opened.url,
+          url,
           needsManual: true,
           reason: manualReason,
         };
@@ -387,7 +381,7 @@ export async function applyToVacancy(
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: true,
           reason: 'cover_letter_skipped',
         };
@@ -409,7 +403,7 @@ export async function applyToVacancy(
       return {
         ok: true,
         externalId,
-        url: opened.url,
+        url,
         applied: true,
         coverLetterAttached: attachResult.attached,
         reason: attachResult.reason,
@@ -419,14 +413,14 @@ export async function applyToVacancy(
   } catch (error) {
     logger.error('Apply failed', { externalId, error });
     const shot = await withPage(config, async (page) => {
-      await page.goto(opened.url, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
+      await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
       return captureFailureArtifacts(page, config.artifactsDir, 'apply');
     }).catch(() => ({ screenshotPath: undefined }));
 
     return {
       ok: false,
       externalId,
-      url: opened.url,
+      url,
       reason: error instanceof Error ? error.message : 'apply_failed',
       screenshotPath: shot.screenshotPath,
     };
