@@ -157,16 +157,6 @@ export class ApplyToVacancyUseCase {
     });
     const dryRun = isDryRun(this.config);
     try {
-      if (!this.llm.isConfigured()) {
-        return await this.failControlled({
-          applyJobId,
-          vacancyId: vacancy.id,
-          runId: run.id,
-          correlationId: input.correlationId,
-          reason: 'llm_not_configured',
-          errorMessage: 'LLM is not configured (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)',
-        });
-      }
       const opened = await this.playwright.openVacancy(vacancy.externalId);
       if (!opened.ok) {
         return await this.failControlled({
@@ -177,6 +167,28 @@ export class ApplyToVacancyUseCase {
           reason: opened.reason ?? 'open_vacancy_failed',
           errorMessage: opened.reason ?? 'open_vacancy_failed',
           vacancyStatus: VacancyStatus.FAILED,
+        });
+      }
+      if (opened.alreadyApplied) {
+        const reason = opened.alreadyAppliedReason ?? 'already_applied';
+        return await this.skipAlreadyOnHh({
+          applyJobId,
+          vacancyId: vacancy.id,
+          externalId: vacancy.externalId,
+          runId: run.id,
+          correlationId: input.correlationId,
+          reason,
+          detectedAt: 'open',
+        });
+      }
+      if (!this.llm.isConfigured()) {
+        return await this.failControlled({
+          applyJobId,
+          vacancyId: vacancy.id,
+          runId: run.id,
+          correlationId: input.correlationId,
+          reason: 'llm_not_configured',
+          errorMessage: 'LLM is not configured (LLM_API_KEY, LLM_BASE_URL, LLM_MODEL)',
         });
       }
       let analysis: VacancyAnalysis;
@@ -251,33 +263,16 @@ export class ApplyToVacancyUseCase {
         dryRun,
       });
       if (applyResult.alreadyApplied) {
-        await this.applyJobs.markDone(applyJobId);
-        await this.prisma.workflowRun.update({
-          where: { id: run.id },
-          data: {
-            status: WorkflowRunStatus.SUCCEEDED,
-            finishedAt: new Date(),
-            metadata: {
-              vacancyId: vacancy.id,
-              externalId: vacancy.externalId,
-              skipped: true,
-              reason: 'already_applied',
-            },
-          },
-        });
-        this.logger.log({
-          msg: 'Apply skipped — already applied on hh.ru',
+        const reason = applyResult.reason ?? 'already_applied';
+        return await this.skipAlreadyOnHh({
+          applyJobId,
           vacancyId: vacancy.id,
           externalId: vacancy.externalId,
-        });
-        return {
-          accepted: true,
-          implemented: true,
-          skipped: true,
-          workflow: 'apply',
           runId: run.id,
-          reason: 'already_applied',
-        };
+          correlationId: input.correlationId,
+          reason,
+          detectedAt: 'apply',
+        });
       }
       if (applyResult.needsManual) {
         const application = await this.applications.upsertResult({
@@ -396,6 +391,56 @@ export class ApplyToVacancyUseCase {
       });
       throw error;
     }
+  }
+
+  private async skipAlreadyOnHh(input: {
+    applyJobId: string;
+    vacancyId: string;
+    externalId: string;
+    runId: string;
+    correlationId?: string;
+    reason: string;
+    detectedAt: 'open' | 'apply';
+  }) {
+    const application = await this.applications.upsertResult({
+      vacancyId: input.vacancyId,
+      status: ApplicationStatus.APPLIED,
+      correlationId: input.correlationId,
+      errorMessage: input.reason,
+      appliedAt: null,
+    });
+    await this.applyJobs.markDone(input.applyJobId);
+    await this.vacancies.markStatus(input.vacancyId, VacancyStatus.APPLIED);
+    await this.prisma.workflowRun.update({
+      where: { id: input.runId },
+      data: {
+        status: WorkflowRunStatus.SUCCEEDED,
+        finishedAt: new Date(),
+        metadata: {
+          vacancyId: input.vacancyId,
+          externalId: input.externalId,
+          skipped: true,
+          reason: input.reason,
+          detectedAt: input.detectedAt,
+        },
+      },
+    });
+    this.logger.log({
+      msg: 'Apply skipped — already applied on hh.ru',
+      vacancyId: input.vacancyId,
+      externalId: input.externalId,
+      reason: input.reason,
+      detectedAt: input.detectedAt,
+    });
+    return {
+      accepted: true,
+      implemented: true,
+      skipped: true,
+      workflow: 'apply',
+      runId: input.runId,
+      applicationId: application.id,
+      reason: input.reason,
+    };
   }
 
   private async failControlled(input: {

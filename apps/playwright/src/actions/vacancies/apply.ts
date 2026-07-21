@@ -4,6 +4,11 @@ import { withPage } from '../../browser/context.js';
 import { createLogger } from '../../logger.js';
 import { humanDelay } from '../../utils/human-delay.js';
 import { captureFailureArtifacts } from '../../utils/screenshot.js';
+import {
+  detectVacancyResponseState,
+  firstVisible,
+  isChatVisible,
+} from './vacancy-response-state.js';
 
 const logger = createLogger('vacancies.apply');
 
@@ -40,31 +45,9 @@ export type ApplyVacancyResult = {
 };
 
 const APPLY_BUTTON = /откликнуться|отклик/i;
-const ALREADY_APPLIED_TEXT = /вы\s*откликнулись|отклик\s*отправлен/i;
 
 const MANUAL_STEP_PATTERNS =
   /пройдите\s+тест|пройти\s+тест|заполните\s+анкет|пройдите\s+анкет/i;
-
-function chatButton(page: Page): Locator {
-  return page
-    .locator('[data-qa="vacancy-response-link-view-topic"]')
-    .or(page.getByRole('link', { name: /^чат$/i }))
-    .or(page.getByRole('button', { name: /^чат$/i }));
-}
-
-async function isChatVisible(page: Page): Promise<boolean> {
-  return (await firstVisible(chatButton(page))) !== null;
-}
-
-async function isAlreadyApplied(page: Page): Promise<boolean> {
-  const appliedText = await page
-    .getByText(ALREADY_APPLIED_TEXT)
-    .first()
-    .isVisible()
-    .catch(() => false);
-  if (appliedText) return true;
-  return isChatVisible(page);
-}
 
 async function waitForChatButton(page: Page): Promise<boolean> {
   const deadline = Date.now() + CHAT_WAIT_MS;
@@ -120,18 +103,6 @@ async function submitResponsePopupIfVisible(page: Page): Promise<void> {
     await submit.first().click();
     await humanDelay(300, 700);
   }
-}
-
-/** First visible locator among all matches (avoids hidden DOM duplicates). */
-async function firstVisible(locator: Locator): Promise<Locator | null> {
-  const count = await locator.count();
-  for (let i = 0; i < count; i++) {
-    const candidate = locator.nth(i);
-    if (await candidate.isVisible().catch(() => false)) {
-      return candidate;
-    }
-  }
-  return null;
 }
 
 async function findVisibleVacancyAttachButton(page: Page): Promise<Locator | null> {
@@ -320,15 +291,19 @@ export async function applyToVacancy(
     return await withPage(config, async (page) => {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      if (await isAlreadyApplied(page)) {
-        logger.info('Vacancy already applied — skip', { externalId });
+      const responseState = await detectVacancyResponseState(page);
+      if (responseState.alreadyApplied) {
+        logger.info('Vacancy already applied — skip', {
+          externalId,
+          reason: responseState.reason,
+        });
         return {
           ok: true,
           externalId,
           url,
           applied: true,
           alreadyApplied: true,
-          reason: 'already_applied',
+          reason: responseState.reason ?? 'already_applied',
         };
       }
 

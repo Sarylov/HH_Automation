@@ -42,6 +42,8 @@ export type PlaywrightOpenVacancyResult = {
   title?: string;
   company?: string;
   descriptionSnippet?: string;
+  alreadyApplied?: boolean;
+  alreadyAppliedReason?: 'already_applied' | 'rejected_by_employer';
   reason?: string;
   screenshotPath?: string;
 };

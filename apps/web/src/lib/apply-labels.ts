@@ -21,6 +21,7 @@ export const APPLY_REASON_LABELS: Record<string, string> = {
   apply_not_confirmed: 'Отклик не подтверждён',
   apply_failed: 'Ошибка отклика',
   already_applied: 'Уже откликались ранее',
+  rejected_by_employer: 'Вам отказали (отклик был ранее)',
   already_processed: 'Уже обработано',
   open_failed: 'Не удалось открыть вакансию',
   dry_run: 'Тестовый прогон',
