@@ -4,19 +4,32 @@ import { withPage } from '../../browser/context.js';
 import { createLogger } from '../../logger.js';
 import { humanDelay } from '../../utils/human-delay.js';
 import { captureFailureArtifacts } from '../../utils/screenshot.js';
-import { openVacancy } from './open.js';
+import {
+  detectVacancyResponseState,
+  firstVisible,
+  isChatVisible,
+} from './vacancy-response-state.js';
 
 const logger = createLogger('vacancies.apply');
+
+function vacancyUrl(config: PlaywrightConfig, externalId: string): string {
+  return `${config.baseUrl}/vacancy/${externalId}`;
+}
 
 /** Max wait for Chat button after clicking Apply (ms). */
 const CHAT_WAIT_MS = 15_000;
 const CHAT_POLL_MS = 500;
+
+/** Max wait for mandatory letter modal right after apply click (ms). */
+const APPLY_LETTER_MODAL_WAIT_MS = 6_000;
 
 /** Max wait for post-apply "attach cover letter" on vacancy page (ms). */
 const VACANCY_ATTACH_WAIT_MS = 15_000;
 const VACANCY_ATTACH_POLL_MS = 500;
 
 const VACANCY_ATTACH_COVER_LETTER_LABEL = /приложить\s+сопроводительное\s+письмо/i;
+const COVER_LETTER_TEXTAREA_SELECTOR =
+  'textarea[data-qa="vacancy-response-popup-form-letter-input"]';
 
 export type ApplyVacancyInput = {
   coverLetter?: string;
@@ -37,30 +50,16 @@ export type ApplyVacancyResult = {
 };
 
 const APPLY_BUTTON = /откликнуться|отклик/i;
-const ALREADY_APPLIED_TEXT = /вы\s*откликнулись|отклик\s*отправлен/i;
 
 const MANUAL_STEP_PATTERNS =
   /пройдите\s+тест|пройти\s+тест|заполните\s+анкет|пройдите\s+анкет/i;
 
-function chatButton(page: Page): Locator {
-  return page
-    .locator('[data-qa="vacancy-response-link-view-topic"]')
-    .or(page.getByRole('link', { name: /^чат$/i }))
-    .or(page.getByRole('button', { name: /^чат$/i }));
+function coverLetterTextareaLocator(page: Page): Locator {
+  return page.locator(COVER_LETTER_TEXTAREA_SELECTOR);
 }
 
-async function isChatVisible(page: Page): Promise<boolean> {
-  return (await firstVisible(chatButton(page))) !== null;
-}
-
-async function isAlreadyApplied(page: Page): Promise<boolean> {
-  const appliedText = await page
-    .getByText(ALREADY_APPLIED_TEXT)
-    .first()
-    .isVisible()
-    .catch(() => false);
-  if (appliedText) return true;
-  return isChatVisible(page);
+async function isCoverLetterModalTextareaVisible(page: Page): Promise<boolean> {
+  return (await firstVisible(coverLetterTextareaLocator(page))) !== null;
 }
 
 async function waitForChatButton(page: Page): Promise<boolean> {
@@ -70,6 +69,12 @@ async function waitForChatButton(page: Page): Promise<boolean> {
     await page.waitForTimeout(CHAT_POLL_MS);
   }
   return false;
+}
+
+async function isApplyConfirmed(page: Page): Promise<boolean> {
+  if (await isChatVisible(page)) return true;
+  const state = await detectVacancyResponseState(page);
+  return state.alreadyApplied;
 }
 
 async function detectManualStepsInModal(page: Page): Promise<string | null> {
@@ -100,7 +105,10 @@ async function detectManualStepsInModal(page: Page): Promise<string | null> {
   return null;
 }
 
-async function submitResponsePopupIfVisible(page: Page): Promise<void> {
+/** Resume-only popup — skip when cover letter textarea is visible. */
+async function submitResumePopupIfVisible(page: Page): Promise<void> {
+  if (await isCoverLetterModalTextareaVisible(page)) return;
+
   const popup = page.locator(
     '[data-qa="vacancy-response-popup"], [data-qa="vacancy-response-popup-form"]',
   );
@@ -117,18 +125,6 @@ async function submitResponsePopupIfVisible(page: Page): Promise<void> {
     await submit.first().click();
     await humanDelay(300, 700);
   }
-}
-
-/** First visible locator among all matches (avoids hidden DOM duplicates). */
-async function firstVisible(locator: Locator): Promise<Locator | null> {
-  const count = await locator.count();
-  for (let i = 0; i < count; i++) {
-    const candidate = locator.nth(i);
-    if (await candidate.isVisible().catch(() => false)) {
-      return candidate;
-    }
-  }
-  return null;
 }
 
 async function findVisibleVacancyAttachButton(page: Page): Promise<Locator | null> {
@@ -156,11 +152,12 @@ async function waitForVisibleVacancyAttachButton(
   return null;
 }
 
-async function waitForCoverLetterModalTextarea(page: Page): Promise<Locator | null> {
-  const deadline = Date.now() + 10_000;
-  const locator = page.locator(
-    'textarea[data-qa="vacancy-response-popup-form-letter-input"]',
-  );
+async function waitForCoverLetterModalTextarea(
+  page: Page,
+  timeoutMs: number,
+): Promise<Locator | null> {
+  const deadline = Date.now() + timeoutMs;
+  const locator = coverLetterTextareaLocator(page);
   while (Date.now() < deadline) {
     const textarea = await firstVisible(locator);
     if (textarea) return textarea;
@@ -170,9 +167,7 @@ async function waitForCoverLetterModalTextarea(page: Page): Promise<Locator | nu
 }
 
 async function confirmCoverLetterModalSubmitted(page: Page): Promise<boolean> {
-  const textarea = page.locator(
-    'textarea[data-qa="vacancy-response-popup-form-letter-input"]',
-  );
+  const textarea = coverLetterTextareaLocator(page);
   const submit = page.locator('[data-qa="vacancy-response-letter-submit"]');
 
   const deadline = Date.now() + 12_000;
@@ -191,6 +186,157 @@ async function confirmCoverLetterModalSubmitted(page: Page): Promise<boolean> {
     await page.waitForTimeout(400);
   }
   return false;
+}
+
+async function fillAndSubmitCoverLetterModal(
+  page: Page,
+  coverLetter: string,
+  externalId: string,
+  artifactsDir: string,
+  artifactPrefix: string,
+): Promise<{ attached: boolean; reason: string; screenshotPath?: string }> {
+  const textarea =
+    (await firstVisible(coverLetterTextareaLocator(page))) ??
+    (await waitForCoverLetterModalTextarea(page, 8_000));
+
+  if (!textarea) {
+    const screenshot = await captureFailureArtifacts(
+      page,
+      artifactsDir,
+      `${artifactPrefix}-textarea-${externalId}`,
+    ).catch(() => ({ screenshotPath: undefined }));
+    logger.warn('Cover letter modal textarea not visible', {
+      externalId,
+      artifactPrefix,
+      screenshotPath: screenshot.screenshotPath,
+    });
+    return {
+      attached: false,
+      reason: 'cover_letter_attach_failed',
+      screenshotPath: screenshot.screenshotPath,
+    };
+  }
+
+  await textarea.fill(coverLetter);
+  logger.info('Cover letter filled in modal textarea', { externalId, artifactPrefix });
+  await humanDelay(200, 500);
+
+  const submitBtn =
+    (await firstVisible(page.locator('[data-qa="vacancy-response-letter-submit"]'))) ??
+    (await firstVisible(
+      page.getByRole('button', { name: /^отправить$/i }),
+    ));
+
+  if (!submitBtn) {
+    const screenshot = await captureFailureArtifacts(
+      page,
+      artifactsDir,
+      `${artifactPrefix}-submit-${externalId}`,
+    ).catch(() => ({ screenshotPath: undefined }));
+    logger.warn('Cover letter modal submit button not found', {
+      externalId,
+      artifactPrefix,
+      screenshotPath: screenshot.screenshotPath,
+    });
+    return {
+      attached: false,
+      reason: 'cover_letter_attach_failed',
+      screenshotPath: screenshot.screenshotPath,
+    };
+  }
+
+  await submitBtn.click();
+  logger.info('Cover letter modal submit clicked', { externalId, artifactPrefix });
+
+  const submitted = await confirmCoverLetterModalSubmitted(page);
+  if (submitted) {
+    logger.info('Cover letter modal closed after submit', { externalId, artifactPrefix });
+    return { attached: true, reason: 'cover_letter_sent_via_modal' };
+  }
+
+  const screenshot = await captureFailureArtifacts(
+    page,
+    artifactsDir,
+    `${artifactPrefix}-send-${externalId}`,
+  ).catch(() => ({ screenshotPath: undefined }));
+  logger.warn('Cover letter modal still open after submit', {
+    externalId,
+    artifactPrefix,
+    screenshotPath: screenshot.screenshotPath,
+  });
+  return {
+    attached: false,
+    reason: 'cover_letter_attach_failed',
+    screenshotPath: screenshot.screenshotPath,
+  };
+}
+
+type PostClickPopupResult = {
+  letterHandled: boolean;
+  needsManual?: boolean;
+  attached?: boolean;
+  reason?: string;
+  screenshotPath?: string;
+};
+
+/**
+ * After «Откликнуться»: handle resume popup, then mandatory cover-letter modal if HH opens it.
+ */
+async function tryHandlePostClickPopups(
+  page: Page,
+  coverLetter: string | undefined,
+  externalId: string,
+  artifactsDir: string,
+): Promise<PostClickPopupResult> {
+  let textarea = await waitForCoverLetterModalTextarea(
+    page,
+    APPLY_LETTER_MODAL_WAIT_MS,
+  );
+
+  if (!textarea) {
+    await submitResumePopupIfVisible(page);
+    await humanDelay(300, 500);
+    textarea = await waitForCoverLetterModalTextarea(page, 4_000);
+  }
+
+  if (!textarea) {
+    return { letterHandled: false };
+  }
+
+  logger.info('Mandatory cover letter modal detected after apply click', {
+    externalId,
+  });
+
+  if (!coverLetter) {
+    return {
+      letterHandled: true,
+      needsManual: true,
+      reason: 'cover_letter_required_in_apply_modal',
+    };
+  }
+
+  const result = await fillAndSubmitCoverLetterModal(
+    page,
+    coverLetter,
+    externalId,
+    artifactsDir,
+    'apply-mandatory-letter',
+  );
+
+  if (!result.attached) {
+    return {
+      letterHandled: true,
+      needsManual: true,
+      reason: result.reason,
+      screenshotPath: result.screenshotPath,
+    };
+  }
+
+  return {
+    letterHandled: true,
+    attached: true,
+    reason: 'cover_letter_sent_in_apply_modal',
+  };
 }
 
 async function attachCoverLetterViaVacancyModal(
@@ -236,74 +382,17 @@ async function attachCoverLetterViaVacancyModal(
   logger.info('Clicked vacancy attach cover letter button', { externalId });
   await humanDelay(300, 700);
 
-  const textarea = await waitForCoverLetterModalTextarea(page);
-  if (!textarea) {
-    const screenshot = await captureFailureArtifacts(
-      page,
-      artifactsDir,
-      `apply-cover-letter-textarea-${externalId}`,
-    ).catch(() => ({ screenshotPath: undefined }));
-    logger.warn('Cover letter modal textarea not visible', {
-      externalId,
-      screenshotPath: screenshot.screenshotPath,
-    });
-    return {
-      attached: false,
-      reason: 'cover_letter_attach_failed',
-      screenshotPath: screenshot.screenshotPath,
-    };
-  }
-
-  await textarea.fill(coverLetter);
-  logger.info('Cover letter filled in modal textarea', { externalId });
-  await humanDelay(200, 500);
-
-  const submitBtn =
-    (await firstVisible(page.locator('[data-qa="vacancy-response-letter-submit"]'))) ??
-    (await firstVisible(
-      page.getByRole('button', { name: /^отправить$/i }),
-    ));
-
-  if (!submitBtn) {
-    const screenshot = await captureFailureArtifacts(
-      page,
-      artifactsDir,
-      `apply-cover-letter-submit-${externalId}`,
-    ).catch(() => ({ screenshotPath: undefined }));
-    logger.warn('Cover letter modal submit button not found', {
-      externalId,
-      screenshotPath: screenshot.screenshotPath,
-    });
-    return {
-      attached: false,
-      reason: 'cover_letter_attach_failed',
-      screenshotPath: screenshot.screenshotPath,
-    };
-  }
-
-  await submitBtn.click();
-  logger.info('Cover letter modal submit clicked', { externalId });
-
-  const submitted = await confirmCoverLetterModalSubmitted(page);
-  if (submitted) {
-    logger.info('Cover letter modal closed after submit', { externalId });
+  const result = await fillAndSubmitCoverLetterModal(
+    page,
+    coverLetter,
+    externalId,
+    artifactsDir,
+    'apply-cover-letter',
+  );
+  if (result.attached) {
     return { attached: true, reason: 'cover_letter_sent_via_modal' };
   }
-
-  const screenshot = await captureFailureArtifacts(
-    page,
-    artifactsDir,
-    `apply-cover-letter-send-${externalId}`,
-  ).catch(() => ({ screenshotPath: undefined }));
-  logger.warn('Cover letter modal still open after submit', {
-    externalId,
-    screenshotPath: screenshot.screenshotPath,
-  });
-  return {
-    attached: false,
-    reason: 'cover_letter_attach_failed',
-    screenshotPath: screenshot.screenshotPath,
-  };
+  return result;
 }
 
 export async function applyToVacancy(
@@ -311,30 +400,25 @@ export async function applyToVacancy(
   externalId: string,
   input: ApplyVacancyInput = {},
 ): Promise<ApplyVacancyResult> {
-  const opened = await openVacancy(config, externalId);
-  if (!opened.ok) {
-    return {
-      ok: false,
-      externalId,
-      url: opened.url,
-      reason: opened.reason ?? 'open_failed',
-      screenshotPath: opened.screenshotPath,
-    };
-  }
+  const url = vacancyUrl(config, externalId);
 
   try {
     return await withPage(config, async (page) => {
-      await page.goto(opened.url, { waitUntil: 'domcontentloaded' });
+      await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      if (await isAlreadyApplied(page)) {
-        logger.info('Vacancy already applied — skip', { externalId });
+      const responseState = await detectVacancyResponseState(page);
+      if (responseState.alreadyApplied) {
+        logger.info('Vacancy already applied — skip', {
+          externalId,
+          reason: responseState.reason,
+        });
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: true,
           alreadyApplied: true,
-          reason: 'already_applied',
+          reason: responseState.reason ?? 'already_applied',
         };
       }
 
@@ -345,7 +429,7 @@ export async function applyToVacancy(
         return {
           ok: false,
           externalId,
-          url: opened.url,
+          url,
           needsManual: manualReason !== null,
           reason: manualReason ?? 'apply_button_not_found',
         };
@@ -356,38 +440,77 @@ export async function applyToVacancy(
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: false,
           dryRun: true,
           reason: 'dry_run',
         };
       }
 
+      const letter = input.coverLetter?.trim();
+
       await humanDelay(400, 1_200);
       await applyButton.click();
-      await submitResponsePopupIfVisible(page);
+      await humanDelay(300, 700);
 
-      const chatAppeared = await waitForChatButton(page);
-      if (!chatAppeared) {
+      const popupResult = await tryHandlePostClickPopups(
+        page,
+        letter,
+        externalId,
+        config.artifactsDir,
+      );
+
+      if (popupResult.needsManual) {
+        return {
+          ok: false,
+          externalId,
+          url,
+          needsManual: true,
+          reason: popupResult.reason ?? 'cover_letter_required_in_apply_modal',
+          screenshotPath: popupResult.screenshotPath,
+        };
+      }
+
+      if (!popupResult.letterHandled) {
+        await submitResumePopupIfVisible(page);
+      }
+
+      const applyConfirmed = await isApplyConfirmed(page)
+        ? true
+        : await waitForChatButton(page).then(
+            (chat) => chat || isApplyConfirmed(page),
+          );
+
+      if (!applyConfirmed) {
         const manualReason =
           (await detectManualStepsInModal(page)) ?? 'chat_not_available_after_apply';
         return {
           ok: false,
           externalId,
-          url: opened.url,
+          url,
           needsManual: true,
           reason: manualReason,
         };
       }
 
-      logger.info('Apply confirmed via Chat button', { externalId });
+      logger.info('Apply confirmed', { externalId });
 
-      const letter = input.coverLetter?.trim();
+      if (popupResult.letterHandled && popupResult.attached) {
+        return {
+          ok: true,
+          externalId,
+          url,
+          applied: true,
+          coverLetterAttached: true,
+          reason: popupResult.reason ?? 'cover_letter_sent_in_apply_modal',
+        };
+      }
+
       if (!letter) {
         return {
           ok: true,
           externalId,
-          url: opened.url,
+          url,
           applied: true,
           reason: 'cover_letter_skipped',
         };
@@ -409,7 +532,7 @@ export async function applyToVacancy(
       return {
         ok: true,
         externalId,
-        url: opened.url,
+        url,
         applied: true,
         coverLetterAttached: attachResult.attached,
         reason: attachResult.reason,
@@ -419,14 +542,14 @@ export async function applyToVacancy(
   } catch (error) {
     logger.error('Apply failed', { externalId, error });
     const shot = await withPage(config, async (page) => {
-      await page.goto(opened.url, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
+      await page.goto(url, { waitUntil: 'domcontentloaded' }).catch(() => undefined);
       return captureFailureArtifacts(page, config.artifactsDir, 'apply');
     }).catch(() => ({ screenshotPath: undefined }));
 
     return {
       ok: false,
       externalId,
-      url: opened.url,
+      url,
       reason: error instanceof Error ? error.message : 'apply_failed',
       screenshotPath: shot.screenshotPath,
     };

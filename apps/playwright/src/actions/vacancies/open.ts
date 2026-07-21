@@ -2,6 +2,10 @@ import type { PlaywrightConfig } from '../../config.js';
 import { withPage } from '../../browser/context.js';
 import { createLogger } from '../../logger.js';
 import { captureFailureArtifacts } from '../../utils/screenshot.js';
+import {
+  detectVacancyResponseState,
+  type VacancyAlreadyAppliedReason,
+} from './vacancy-response-state.js';
 
 const logger = createLogger('vacancies.open');
 
@@ -12,6 +16,8 @@ export type OpenVacancyResult = {
   title?: string;
   company?: string;
   descriptionSnippet?: string;
+  alreadyApplied?: boolean;
+  alreadyAppliedReason?: VacancyAlreadyAppliedReason;
   reason?: string;
   screenshotPath?: string;
 };
@@ -47,7 +53,14 @@ export async function openVacancy(
           .innerText()
           .catch(() => undefined)) ?? undefined;
 
-      logger.info('Vacancy opened', { externalId, title });
+      const responseState = await detectVacancyResponseState(page);
+
+      logger.info('Vacancy opened', {
+        externalId,
+        title,
+        alreadyApplied: responseState.alreadyApplied,
+        alreadyAppliedReason: responseState.reason,
+      });
       return {
         ok: true,
         externalId,
@@ -55,6 +68,8 @@ export async function openVacancy(
         title: title?.trim(),
         company: company?.trim(),
         descriptionSnippet: descriptionSnippet?.trim()?.slice(0, 2000),
+        alreadyApplied: responseState.alreadyApplied,
+        alreadyAppliedReason: responseState.reason,
       };
     });
   } catch (error) {
