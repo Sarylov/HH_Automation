@@ -3,9 +3,20 @@ import { useCallback, useMemo, useState } from 'react';
 import { fetchApplications } from '../api/applications';
 import { CoverLetterModal } from '../components/CoverLetterModal';
 import { StatusBadge } from '../components/StatusBadge';
+import {
+  formatApplyReason,
+  formatApplicationStatus,
+  isApplyWarningReason,
+} from '../lib/apply-labels';
 import { formatDateTime, previewText } from '../lib/format';
 
-const STATUS_FILTERS = ['', 'APPLIED', 'FAILED', 'NEEDS_MANUAL', 'STUB'] as const;
+const STATUS_FILTERS = [
+  { value: '', label: 'Все' },
+  { value: 'APPLIED', label: formatApplicationStatus('APPLIED') },
+  { value: 'FAILED', label: formatApplicationStatus('FAILED') },
+  { value: 'NEEDS_MANUAL', label: formatApplicationStatus('NEEDS_MANUAL') },
+  { value: 'STUB', label: formatApplicationStatus('STUB') },
+] as const;
 
 export function ApplicationsPage() {
   const [status, setStatus] = useState<string>('');
@@ -18,7 +29,6 @@ export function ApplicationsPage() {
         status: status || undefined,
         limit: 50,
       }),
-    refetchInterval: 15_000,
   });
 
   const items = useMemo(() => query.data?.items ?? [], [query.data]);
@@ -40,8 +50,8 @@ export function ApplicationsPage() {
             onChange={(e) => setStatus(e.target.value)}
           >
             {STATUS_FILTERS.map((s) => (
-              <option key={s || 'all'} value={s}>
-                {s || 'Все'}
+              <option key={s.value || 'all'} value={s.value}>
+                {s.label}
               </option>
             ))}
           </select>
@@ -72,7 +82,7 @@ export function ApplicationsPage() {
                 <th className="px-4 py-2 font-medium">Вакансия</th>
                 <th className="px-4 py-2 font-medium">Компания</th>
                 <th className="px-4 py-2 font-medium">Письмо</th>
-                <th className="px-4 py-2 font-medium">Ошибка</th>
+                <th className="px-4 py-2 font-medium">Примечание</th>
               </tr>
             </thead>
             <tbody>
@@ -112,8 +122,19 @@ export function ApplicationsPage() {
                       <span className="text-zinc-400">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 align-top text-zinc-700" title={app.errorMessage ?? undefined}>
-                    {app.errorMessage ? previewText(app.errorMessage, 100) : '—'}
+                  <td
+                    className={`px-4 py-2 align-top ${
+                      isApplyWarningReason(app.errorMessage)
+                        ? 'text-amber-800'
+                        : app.errorMessage
+                          ? 'text-rose-800'
+                          : 'text-zinc-400'
+                    }`}
+                    title={app.errorMessage ?? undefined}
+                  >
+                    {app.errorMessage
+                      ? previewText(formatApplyReason(app.errorMessage), 100)
+                      : '—'}
                   </td>
                 </tr>
               ))}

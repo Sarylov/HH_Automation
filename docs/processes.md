@@ -29,6 +29,8 @@ App: [`apps/web`](../apps/web/README.md) → Backend API only. Does not call Pla
 
 UX: table pages; cover letter opens in a modal (toggle close via second click / Esc / backdrop). No mutations from UI in Phase 7.
 
+Apply status/reason codes: [apply-statuses.md](./apply-statuses.md)
+
 ## Ops docs
 
 - Deploy / backups / session rotation: [runbook-deploy.md](./runbook-deploy.md)

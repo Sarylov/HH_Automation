@@ -5,7 +5,6 @@ export function MetricsStrip() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['metrics'],
     queryFn: fetchMetrics,
-    refetchInterval: 15_000,
   });
 
   if (isLoading) {
