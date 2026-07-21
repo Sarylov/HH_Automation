@@ -12,6 +12,12 @@ const logger = createLogger('vacancies.apply');
 const CHAT_WAIT_MS = 15_000;
 const CHAT_POLL_MS = 500;
 
+/** Max wait for post-apply "attach cover letter" on vacancy page (ms). */
+const VACANCY_ATTACH_WAIT_MS = 15_000;
+const VACANCY_ATTACH_POLL_MS = 500;
+
+const VACANCY_ATTACH_COVER_LETTER_LABEL = /приложить\s+сопроводительное\s+письмо/i;
+
 export type ApplyVacancyInput = {
   coverLetter?: string;
   dryRun?: boolean;
@@ -44,10 +50,7 @@ function chatButton(page: Page): Locator {
 }
 
 async function isChatVisible(page: Page): Promise<boolean> {
-  return chatButton(page)
-    .first()
-    .isVisible()
-    .catch(() => false);
+  return (await firstVisible(chatButton(page))) !== null;
 }
 
 async function isAlreadyApplied(page: Page): Promise<boolean> {
@@ -116,82 +119,191 @@ async function submitResponsePopupIfVisible(page: Page): Promise<void> {
   }
 }
 
-function chatMessages(page: Page): Locator {
-  return page.locator(
-    '[data-qa="chatik-chat-message"], [data-qa="negotiation-message"]',
-  );
+/** First visible locator among all matches (avoids hidden DOM duplicates). */
+async function firstVisible(locator: Locator): Promise<Locator | null> {
+  const count = await locator.count();
+  for (let i = 0; i < count; i++) {
+    const candidate = locator.nth(i);
+    if (await candidate.isVisible().catch(() => false)) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
-async function attachCoverLetterViaChat(
+async function findVisibleVacancyAttachButton(page: Page): Promise<Locator | null> {
+  const byQa = page.locator('[data-qa="responded-success-attach-cover-letter"]');
+  const qaMatch = await firstVisible(byQa);
+  if (qaMatch) return qaMatch;
+
+  const byText = page.getByRole('button', { name: VACANCY_ATTACH_COVER_LETTER_LABEL });
+  return firstVisible(byText);
+}
+
+async function countVacancyAttachCandidates(page: Page): Promise<number> {
+  return page.locator('[data-qa="responded-success-attach-cover-letter"]').count();
+}
+
+async function waitForVisibleVacancyAttachButton(
   page: Page,
-  coverLetter: string,
-): Promise<{ attached: boolean; reason: string }> {
-  const chat = chatButton(page).first();
-  await chat.click();
-  await humanDelay(400, 900);
-
-  const attachBtn = page.locator('[data-qa="chatik-chat-message-applicant-action"]');
-  const attachVisible = await attachBtn
-    .first()
-    .waitFor({ state: 'visible', timeout: 10_000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (!attachVisible) {
-    return { attached: false, reason: 'cover_letter_attach_unavailable' };
+): Promise<Locator | null> {
+  const deadline = Date.now() + VACANCY_ATTACH_WAIT_MS;
+  while (Date.now() < deadline) {
+    const button = await findVisibleVacancyAttachButton(page);
+    if (button) return button;
+    await page.waitForTimeout(VACANCY_ATTACH_POLL_MS);
   }
+  return null;
+}
 
-  const messagesBefore = await chatMessages(page).count();
-
-  await attachBtn.first().click();
-  await humanDelay(300, 700);
-
-  const textarea = page.locator('textarea[data-qa="chatik-new-message-text"]').first();
-  const inputVisible = await textarea
-    .waitFor({ state: 'visible', timeout: 8_000 })
-    .then(() => true)
-    .catch(() => false);
-
-  if (!inputVisible) {
-    return { attached: false, reason: 'cover_letter_attach_failed' };
+async function waitForCoverLetterModalTextarea(page: Page): Promise<Locator | null> {
+  const deadline = Date.now() + 10_000;
+  const locator = page.locator(
+    'textarea[data-qa="vacancy-response-popup-form-letter-input"]',
+  );
+  while (Date.now() < deadline) {
+    const textarea = await firstVisible(locator);
+    if (textarea) return textarea;
+    await page.waitForTimeout(300);
   }
+  return null;
+}
 
-  await textarea.fill(coverLetter);
-  await humanDelay(200, 500);
+async function confirmCoverLetterModalSubmitted(page: Page): Promise<boolean> {
+  const textarea = page.locator(
+    'textarea[data-qa="vacancy-response-popup-form-letter-input"]',
+  );
+  const submit = page.locator('[data-qa="vacancy-response-letter-submit"]');
 
-  const sendBtn = page.getByRole('button', { name: /отправить|send/i });
-  if (await sendBtn.first().isVisible().catch(() => false)) {
-    await sendBtn.first().click();
-  } else {
-    await textarea.press('Enter');
-  }
-
-  const snippet = coverLetter.trim().slice(0, 80);
   const deadline = Date.now() + 12_000;
   while (Date.now() < deadline) {
-    const count = await chatMessages(page).count();
-    if (count > messagesBefore) {
-      const hasText = await chatMessages(page)
-        .filter({ hasText: snippet })
-        .first()
-        .isVisible()
-        .catch(() => false);
-      if (hasText) {
-        return { attached: true, reason: 'cover_letter_sent_via_chat' };
-      }
-    }
-    const directMatch = await page
-      .getByText(snippet, { exact: false })
+    const textareaVisible = await textarea
       .first()
       .isVisible()
       .catch(() => false);
-    if (directMatch) {
-      return { attached: true, reason: 'cover_letter_sent_via_chat' };
+    const submitVisible = await submit
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (!textareaVisible && !submitVisible) {
+      return true;
     }
     await page.waitForTimeout(400);
   }
+  return false;
+}
 
-  return { attached: false, reason: 'cover_letter_attach_failed' };
+async function attachCoverLetterViaVacancyModal(
+  page: Page,
+  coverLetter: string,
+  externalId: string,
+  artifactsDir: string,
+): Promise<{ attached: boolean; reason: string; screenshotPath?: string }> {
+  logger.info('Attaching cover letter via vacancy modal', {
+    externalId,
+    letterLength: coverLetter.length,
+  });
+
+  const candidateCount = await countVacancyAttachCandidates(page);
+  logger.info('Waiting for post-apply attach cover letter button', {
+    externalId,
+    candidateCount,
+  });
+
+  const attachBtn = await waitForVisibleVacancyAttachButton(page);
+  if (!attachBtn) {
+    const screenshot = await captureFailureArtifacts(
+      page,
+      artifactsDir,
+      `apply-cover-letter-unavailable-${externalId}`,
+    ).catch(() => ({ screenshotPath: undefined }));
+    logger.warn('Vacancy attach cover letter button not visible', {
+      externalId,
+      candidateCount,
+      waitedMs: VACANCY_ATTACH_WAIT_MS,
+      screenshotPath: screenshot.screenshotPath,
+    });
+    return {
+      attached: false,
+      reason: 'cover_letter_attach_unavailable',
+      screenshotPath: screenshot.screenshotPath,
+    };
+  }
+
+  logger.info('Vacancy attach cover letter button found', { externalId });
+  await attachBtn.scrollIntoViewIfNeeded().catch(() => undefined);
+  await attachBtn.click();
+  logger.info('Clicked vacancy attach cover letter button', { externalId });
+  await humanDelay(300, 700);
+
+  const textarea = await waitForCoverLetterModalTextarea(page);
+  if (!textarea) {
+    const screenshot = await captureFailureArtifacts(
+      page,
+      artifactsDir,
+      `apply-cover-letter-textarea-${externalId}`,
+    ).catch(() => ({ screenshotPath: undefined }));
+    logger.warn('Cover letter modal textarea not visible', {
+      externalId,
+      screenshotPath: screenshot.screenshotPath,
+    });
+    return {
+      attached: false,
+      reason: 'cover_letter_attach_failed',
+      screenshotPath: screenshot.screenshotPath,
+    };
+  }
+
+  await textarea.fill(coverLetter);
+  logger.info('Cover letter filled in modal textarea', { externalId });
+  await humanDelay(200, 500);
+
+  const submitBtn =
+    (await firstVisible(page.locator('[data-qa="vacancy-response-letter-submit"]'))) ??
+    (await firstVisible(
+      page.getByRole('button', { name: /^отправить$/i }),
+    ));
+
+  if (!submitBtn) {
+    const screenshot = await captureFailureArtifacts(
+      page,
+      artifactsDir,
+      `apply-cover-letter-submit-${externalId}`,
+    ).catch(() => ({ screenshotPath: undefined }));
+    logger.warn('Cover letter modal submit button not found', {
+      externalId,
+      screenshotPath: screenshot.screenshotPath,
+    });
+    return {
+      attached: false,
+      reason: 'cover_letter_attach_failed',
+      screenshotPath: screenshot.screenshotPath,
+    };
+  }
+
+  await submitBtn.click();
+  logger.info('Cover letter modal submit clicked', { externalId });
+
+  const submitted = await confirmCoverLetterModalSubmitted(page);
+  if (submitted) {
+    logger.info('Cover letter modal closed after submit', { externalId });
+    return { attached: true, reason: 'cover_letter_sent_via_modal' };
+  }
+
+  const screenshot = await captureFailureArtifacts(
+    page,
+    artifactsDir,
+    `apply-cover-letter-send-${externalId}`,
+  ).catch(() => ({ screenshotPath: undefined }));
+  logger.warn('Cover letter modal still open after submit', {
+    externalId,
+    screenshotPath: screenshot.screenshotPath,
+  });
+  return {
+    attached: false,
+    reason: 'cover_letter_attach_failed',
+    screenshotPath: screenshot.screenshotPath,
+  };
 }
 
 export async function applyToVacancy(
@@ -281,7 +393,19 @@ export async function applyToVacancy(
         };
       }
 
-      const attachResult = await attachCoverLetterViaChat(page, letter);
+      const attachResult = await attachCoverLetterViaVacancyModal(
+        page,
+        letter,
+        externalId,
+        config.artifactsDir,
+      );
+      if (attachResult.screenshotPath) {
+        logger.info('Cover letter attach artifact saved', {
+          externalId,
+          screenshotPath: attachResult.screenshotPath,
+          reason: attachResult.reason,
+        });
+      }
       return {
         ok: true,
         externalId,
@@ -289,6 +413,7 @@ export async function applyToVacancy(
         applied: true,
         coverLetterAttached: attachResult.attached,
         reason: attachResult.reason,
+        screenshotPath: attachResult.screenshotPath,
       };
     });
   } catch (error) {

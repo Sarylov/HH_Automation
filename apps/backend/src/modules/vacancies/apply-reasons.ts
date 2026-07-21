@@ -8,6 +8,7 @@ export const APPLY_WARNING_REASONS = new Set([
 
 export const APPLY_SUCCESS_REASONS = new Set([
   'cover_letter_sent_via_chat',
+  'cover_letter_sent_via_modal',
   'applied_confirmed',
 ]);
 

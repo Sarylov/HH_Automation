@@ -21,15 +21,17 @@ Canonical reference for vacancy apply outcomes in Playwright, backend `Applicati
 
 **Already applied:** if «Вы откликнулись» or Chat is visible before click → skip (`already_applied`).
 
-## Cover letter via chat
+## Cover letter via vacancy modal (current)
 
 After Chat is confirmed:
 
-1. Click **Чат**.
-2. Click **Добавить сопроводительное** (`data-qa="chatik-chat-message-applicant-action"`).
-3. Fill `textarea[data-qa="chatik-new-message-text"]`.
-4. Send.
-5. Success when a new chat message contains the letter text.
+1. Wait for **Приложить сопроводительное письмо** (`data-qa="responded-success-attach-cover-letter"`).
+2. Click it.
+3. Fill `textarea[data-qa="vacancy-response-popup-form-letter-input"]`.
+4. Click **Отправить** (`data-qa="vacancy-response-letter-submit"`).
+5. Success when modal closes.
+
+Legacy chat-widget path removed.
 
 ## Reason codes
 
@@ -37,7 +39,8 @@ After Chat is confirmed:
 
 | Code | When |
 |------|------|
-| `cover_letter_sent_via_chat` | Letter appeared as new chat message |
+| `cover_letter_sent_via_modal` | Letter submitted via post-apply vacancy modal |
+| `cover_letter_sent_via_chat` | Letter appeared as new chat message (legacy) |
 | `applied_confirmed` | Apply confirmed, no letter step (reserved) |
 
 ### Success with warning (`APPLIED` + `errorMessage`)
