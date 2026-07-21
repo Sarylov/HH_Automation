@@ -11,6 +11,8 @@ export const APPLY_REASON_LABELS: Record<string, string> = {
   applied_confirmed: 'Отклик подтверждён',
   cover_letter_sent_via_chat: 'Письмо отправлено в чат',
   cover_letter_sent_via_modal: 'Письмо отправлено через модалку',
+  cover_letter_sent_in_apply_modal: 'Письмо отправлено в модалке отклика',
+  cover_letter_required_in_apply_modal: 'Требуется письмо в модалке отклика',
   cover_letter_skipped: 'Отклик без письма (письмо не передано)',
   cover_letter_attach_unavailable: 'Отклик есть, кнопка «Добавить сопроводительное» недоступна',
   cover_letter_attach_failed: 'Отклик есть, письмо не удалось отправить',
