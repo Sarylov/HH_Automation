@@ -21,7 +21,11 @@ const CHAT_WAIT_MS = 15_000;
 const CHAT_POLL_MS = 500;
 
 /** Max wait for mandatory letter modal right after apply click (ms). */
-const APPLY_LETTER_MODAL_WAIT_MS = 6_000;
+const APPLY_LETTER_MODAL_WAIT_MS = 10_000;
+
+/** Max wait for relocation warning after apply click (ms). */
+const RELOCATION_WARNING_WAIT_MS = 3_000;
+const RELOCATION_WARNING_POLL_MS = 300;
 
 /** Max wait for post-apply "attach cover letter" on vacancy page (ms). */
 const VACANCY_ATTACH_WAIT_MS = 15_000;
@@ -78,14 +82,27 @@ async function isApplyConfirmed(page: Page): Promise<boolean> {
 }
 
 async function detectManualStepsInModal(page: Page): Promise<string | null> {
-  const modal = page.locator(
-    '[data-qa="vacancy-response-popup"], [data-qa="vacancy-response-popup-form"], [role="dialog"]',
-  );
+  const modal = page.locator('[role="dialog"]');
   const modalVisible = await modal
     .first()
     .isVisible()
     .catch(() => false);
   const scope = modalVisible ? modal.first() : page.locator('body');
+
+  const employerTest = await scope
+    .locator('[data-qa="employer-asking-for-test"], [data-qa="task-body"]')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (employerTest) {
+    const testRequired = await scope
+      .locator('input[name="testRequired"][value="true"]')
+      .first()
+      .count()
+      .catch(() => 0);
+    if (testRequired > 0) return 'test_required';
+    return 'questionnaire_required';
+  }
 
   const testVisible = await scope
     .getByText(MANUAL_STEP_PATTERNS)
@@ -105,9 +122,9 @@ async function detectManualStepsInModal(page: Page): Promise<string | null> {
   return null;
 }
 
-/** Resume-only popup — skip when cover letter textarea is visible. */
+/** Resume-only popup — skip when cover letter modal is open. */
 async function submitResumePopupIfVisible(page: Page): Promise<void> {
-  if (await isCoverLetterModalTextareaVisible(page)) return;
+  if (await isApplyCoverLetterModalOpen(page)) return;
 
   const popup = page.locator(
     '[data-qa="vacancy-response-popup"], [data-qa="vacancy-response-popup-form"]',
@@ -125,6 +142,30 @@ async function submitResumePopupIfVisible(page: Page): Promise<void> {
     await submit.first().click();
     await humanDelay(300, 700);
   }
+}
+
+/**
+ * «Вы откликаетесь на вакансию в другой стране» — confirm and continue apply.
+ * Returns true if the warning was present and confirmed.
+ */
+async function dismissRelocationWarningIfVisible(page: Page): Promise<boolean> {
+  const confirmLocator = page
+    .locator('[data-qa="relocation-warning-confirm"]')
+    .or(page.getByRole('button', { name: /все\s+равно\s+откликнуться/i }));
+
+  const deadline = Date.now() + RELOCATION_WARNING_WAIT_MS;
+  let confirmBtn: Locator | null = null;
+  while (Date.now() < deadline) {
+    confirmBtn = await firstVisible(confirmLocator);
+    if (confirmBtn) break;
+    await page.waitForTimeout(RELOCATION_WARNING_POLL_MS);
+  }
+  if (!confirmBtn) return false;
+
+  logger.info('Relocation warning — confirming apply');
+  await confirmBtn.click();
+  await humanDelay(300, 700);
+  return true;
 }
 
 async function findVisibleVacancyAttachButton(page: Page): Promise<Locator | null> {
@@ -152,35 +193,128 @@ async function waitForVisibleVacancyAttachButton(
   return null;
 }
 
+async function isApplyCoverLetterModalOpen(page: Page): Promise<boolean> {
+  if (await isCoverLetterModalTextareaVisible(page)) return true;
+
+  const applySubmit = await firstVisible(
+    page.locator('[data-qa="vacancy-response-submit-popup"]'),
+  );
+  if (applySubmit) return true;
+
+  const title = page.locator('[data-qa="title"]');
+  const titleText =
+    (await title
+      .first()
+      .textContent()
+      .catch(() => null)) ?? '';
+  return /отклик\s+на\s+вакансию/i.test(titleText);
+}
+
 async function waitForCoverLetterModalTextarea(
   page: Page,
   timeoutMs: number,
+  externalId?: string,
 ): Promise<Locator | null> {
   const deadline = Date.now() + timeoutMs;
   const locator = coverLetterTextareaLocator(page);
+  let toggleAttempted = false;
+
   while (Date.now() < deadline) {
     const textarea = await firstVisible(locator);
     if (textarea) return textarea;
+
+    const modalOpen = await isApplyCoverLetterModalOpen(page);
+    if (modalOpen && !toggleAttempted && externalId) {
+      toggleAttempted = true;
+      const expanded = await ensureCoverLetterTextareaVisible(page, externalId);
+      if (expanded) return expanded;
+    }
+
     await page.waitForTimeout(300);
   }
   return null;
 }
 
+async function ensureCoverLetterTextareaVisible(
+  page: Page,
+  externalId: string,
+): Promise<Locator | null> {
+  let textarea = await firstVisible(coverLetterTextareaLocator(page));
+  if (textarea) return textarea;
+
+  const toggle = await firstVisible(
+    page.locator('[data-qa="vacancy-response-letter-toggle"]'),
+  );
+  if (toggle) {
+    logger.info('Expanding cover letter section via toggle', { externalId });
+    await toggle.click();
+    await humanDelay(300, 700);
+    textarea = await firstVisible(coverLetterTextareaLocator(page));
+  }
+  return textarea;
+}
+
+async function findCoverLetterModalSubmit(page: Page): Promise<Locator | null> {
+  const applySubmit = page.locator('[data-qa="vacancy-response-submit-popup"]');
+  const applyMatch = await firstVisible(applySubmit);
+  if (applyMatch) return applyMatch;
+
+  const letterSubmit = page.locator('[data-qa="vacancy-response-letter-submit"]');
+  const letterMatch = await firstVisible(letterSubmit);
+  if (letterMatch) return letterMatch;
+
+  const dialog = page.locator('[role="dialog"]');
+  return (
+    (await firstVisible(
+      dialog.getByRole('button', { name: /^отправить$/i }),
+    )) ??
+    (await firstVisible(
+      dialog.getByRole('button', { name: /^откликнуться$/i }),
+    ))
+  );
+}
+
+async function waitForSubmitEnabled(
+  submitBtn: Locator,
+  timeoutMs = 8_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const disabled = await submitBtn.isDisabled().catch(() => true);
+    if (!disabled) return true;
+    await submitBtn.page().waitForTimeout(200);
+  }
+  return !(await submitBtn.isDisabled().catch(() => true));
+}
+
 async function confirmCoverLetterModalSubmitted(page: Page): Promise<boolean> {
   const textarea = coverLetterTextareaLocator(page);
-  const submit = page.locator('[data-qa="vacancy-response-letter-submit"]');
+  const applySubmit = page.locator('[data-qa="vacancy-response-submit-popup"]');
+  const letterSubmit = page.locator('[data-qa="vacancy-response-letter-submit"]');
+  const dialog = page.locator('[role="dialog"]');
 
   const deadline = Date.now() + 12_000;
   while (Date.now() < deadline) {
+    if (await isChatVisible(page)) return true;
+
+    const dialogVisible = await dialog
+      .first()
+      .isVisible()
+      .catch(() => false);
     const textareaVisible = await textarea
       .first()
       .isVisible()
       .catch(() => false);
-    const submitVisible = await submit
+    const applySubmitVisible = await applySubmit
       .first()
       .isVisible()
       .catch(() => false);
-    if (!textareaVisible && !submitVisible) {
+    const letterSubmitVisible = await letterSubmit
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (!dialogVisible && !textareaVisible && !applySubmitVisible && !letterSubmitVisible) {
       return true;
     }
     await page.waitForTimeout(400);
@@ -196,7 +330,7 @@ async function fillAndSubmitCoverLetterModal(
   artifactPrefix: string,
 ): Promise<{ attached: boolean; reason: string; screenshotPath?: string }> {
   const textarea =
-    (await firstVisible(coverLetterTextareaLocator(page))) ??
+    (await ensureCoverLetterTextareaVisible(page, externalId)) ??
     (await waitForCoverLetterModalTextarea(page, 8_000));
 
   if (!textarea) {
@@ -221,12 +355,7 @@ async function fillAndSubmitCoverLetterModal(
   logger.info('Cover letter filled in modal textarea', { externalId, artifactPrefix });
   await humanDelay(200, 500);
 
-  const submitBtn =
-    (await firstVisible(page.locator('[data-qa="vacancy-response-letter-submit"]'))) ??
-    (await firstVisible(
-      page.getByRole('button', { name: /^отправить$/i }),
-    ));
-
+  const submitBtn = await findCoverLetterModalSubmit(page);
   if (!submitBtn) {
     const screenshot = await captureFailureArtifacts(
       page,
@@ -245,8 +374,21 @@ async function fillAndSubmitCoverLetterModal(
     };
   }
 
+  const enabled = await waitForSubmitEnabled(submitBtn);
+  if (!enabled) {
+    logger.warn('Cover letter modal submit button stayed disabled', {
+      externalId,
+      artifactPrefix,
+    });
+  }
+
   await submitBtn.click();
-  logger.info('Cover letter modal submit clicked', { externalId, artifactPrefix });
+  logger.info('Cover letter modal submit clicked', {
+    externalId,
+    artifactPrefix,
+    submitQa:
+      (await submitBtn.getAttribute('data-qa').catch(() => null)) ?? 'unknown',
+  });
 
   const submitted = await confirmCoverLetterModalSubmitted(page);
   if (submitted) {
@@ -280,7 +422,8 @@ type PostClickPopupResult = {
 };
 
 /**
- * After «Откликнуться»: handle resume popup, then mandatory cover-letter modal if HH opens it.
+ * After «Откликнуться» (and optional relocation confirm): handle resume popup,
+ * then mandatory cover-letter modal if HH opens it.
  */
 async function tryHandlePostClickPopups(
   page: Page,
@@ -288,15 +431,31 @@ async function tryHandlePostClickPopups(
   externalId: string,
   artifactsDir: string,
 ): Promise<PostClickPopupResult> {
+  const manualInModal = await detectManualStepsInModal(page);
+  if (manualInModal) {
+    logger.info('Manual steps detected in response modal', {
+      externalId,
+      reason: manualInModal,
+    });
+    return {
+      letterHandled: true,
+      needsManual: true,
+      reason: manualInModal,
+    };
+  }
+
   let textarea = await waitForCoverLetterModalTextarea(
     page,
     APPLY_LETTER_MODAL_WAIT_MS,
+    externalId,
   );
 
-  if (!textarea) {
+  if (!textarea && !(await isApplyCoverLetterModalOpen(page))) {
     await submitResumePopupIfVisible(page);
     await humanDelay(300, 500);
-    textarea = await waitForCoverLetterModalTextarea(page, 4_000);
+    textarea = await waitForCoverLetterModalTextarea(page, 4_000, externalId);
+  } else if (!textarea) {
+    textarea = await waitForCoverLetterModalTextarea(page, 4_000, externalId);
   }
 
   if (!textarea) {
@@ -452,6 +611,11 @@ export async function applyToVacancy(
       await humanDelay(400, 1_200);
       await applyButton.click();
       await humanDelay(300, 700);
+
+      const relocationConfirmed = await dismissRelocationWarningIfVisible(page);
+      if (relocationConfirmed) {
+        logger.info('Relocation warning confirmed', { externalId });
+      }
 
       const popupResult = await tryHandlePostClickPopups(
         page,
