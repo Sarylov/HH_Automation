@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { PlaywrightClient } from '../../../infrastructure/playwright/playwright.client';
 import { SkillsRankingRunRepository } from '../../skills-ranking/repositories/skills-ranking-run.repository';
+import { MERGED_SKILLS_QUERY } from '../../skills-ranking/use-cases/rank-skills.use-case';
 import { ResumeActionRepository } from '../repositories/resume-action.repository';
 import { ResumeRepository } from '../repositories/resume.repository';
 
@@ -25,7 +26,8 @@ const DEFAULT_BLACKLIST = ['angular', 'c++'];
 export type SyncResumeSkillsInput = {
   resumeExternalId: string;
   rankingRunId: string;
-  query: string;
+  /** Legacy: filter by profile label. Omit to use the merged pool for the run. */
+  query?: string;
   topN?: number;
   /** Case-insensitive substrings; drops skills whose name/unique contains any token (e.g. "angular" → Angular, AngularJS). */
   blacklist?: string[];
@@ -54,6 +56,30 @@ export function isSkillBlacklisted(
   if (blacklist.length === 0) return false;
   const key = skillUnique.replace(/\s+/g, ' ').trim().toLowerCase();
   return blacklist.some((token) => key.includes(token));
+}
+
+/**
+ * Collapse per-profile rows (legacy runs) into one row per unique, summing counts.
+ * New runs already store a single merged row per skill.
+ */
+export function mergeSkillsByUnique(
+  skills: SkillsRankingSkill[],
+): SkillsRankingSkill[] {
+  const map = new Map<string, SkillsRankingSkill>();
+  for (const skill of skills) {
+    const existing = map.get(skill.unique);
+    if (existing) {
+      map.set(skill.unique, {
+        ...existing,
+        counts: existing.counts + skill.counts,
+      });
+    } else {
+      map.set(skill.unique, skill);
+    }
+  }
+  return [...map.values()].sort(
+    (a, b) => b.counts - a.counts || a.unique.localeCompare(b.unique),
+  );
 }
 
 export function pickTargetSkills(
@@ -88,7 +114,8 @@ export class SyncResumeSkillsUseCase {
   async execute(input: SyncResumeSkillsInput) {
     const resumeExternalId = input.resumeExternalId?.trim();
     const rankingRunId = input.rankingRunId?.trim();
-    const query = input.query?.trim().toLowerCase();
+    const queryFilter = input.query?.trim().toLowerCase() || undefined;
+    const poolQuery = queryFilter ?? MERGED_SKILLS_QUERY;
     const topN = Math.min(
       Math.max(input.topN ?? DEFAULT_TOP_N, 1),
       MAX_CHIPS,
@@ -97,9 +124,9 @@ export class SyncResumeSkillsUseCase {
       input.blacklist !== undefined ? input.blacklist : DEFAULT_BLACKLIST,
     );
 
-    if (!resumeExternalId || !rankingRunId || !query) {
+    if (!resumeExternalId || !rankingRunId) {
       throw new BadRequestException(
-        'resumeExternalId, rankingRunId and query are required',
+        'resumeExternalId and rankingRunId are required',
       );
     }
 
@@ -115,11 +142,14 @@ export class SyncResumeSkillsUseCase {
       );
     }
 
-    const { run, skills: ranked } =
-      await this.rankingRuns.findSucceededSkillsForQuery({
-        runId: rankingRunId,
-        query,
-      });
+    const { run, skills: rawRanked } = queryFilter
+      ? await this.rankingRuns.findSucceededSkillsForQuery({
+          runId: rankingRunId,
+          query: queryFilter,
+        })
+      : await this.rankingRuns.findSucceededSkillsForRun({
+          runId: rankingRunId,
+        });
 
     if (!run || run.status !== SkillsRankingRunStatus.SUCCEEDED) {
       throw new NotFoundException(
@@ -127,16 +157,20 @@ export class SyncResumeSkillsUseCase {
       );
     }
 
+    const ranked = queryFilter ? rawRanked : mergeSkillsByUnique(rawRanked);
+
     if (ranked.length === 0) {
       throw new BadRequestException(
-        `no skills for query="${query}" in run ${rankingRunId}`,
+        queryFilter
+          ? `no skills for query="${queryFilter}" in run ${rankingRunId}`
+          : `no skills in run ${rankingRunId}`,
       );
     }
 
     const { desired, skipped } = pickTargetSkills(ranked, topN, blacklist);
     if (desired.length === 0) {
       throw new BadRequestException(
-        `no skills left after blacklist for query="${query}" in run ${rankingRunId}`,
+        `no skills left after blacklist in run ${rankingRunId}`,
       );
     }
 
@@ -147,7 +181,7 @@ export class SyncResumeSkillsUseCase {
       msg: 'Resume skills sync started',
       resumeExternalId,
       rankingRunId,
-      query,
+      query: poolQuery,
       topN,
       blacklist,
       desiredCount: desiredSkills.length,
@@ -167,7 +201,7 @@ export class SyncResumeSkillsUseCase {
 
     const changelogBase = {
       rankingRunId,
-      query,
+      query: poolQuery,
       topN,
       blacklist,
       blacklistedSkipped,
@@ -202,7 +236,7 @@ export class SyncResumeSkillsUseCase {
           reason,
           resumeExternalId,
           rankingRunId,
-          query,
+          query: poolQuery,
           screenshotPath: synced.screenshotPath,
         },
         HttpStatus.INTERNAL_SERVER_ERROR,
@@ -237,7 +271,7 @@ export class SyncResumeSkillsUseCase {
         reason: synced.reason ?? 'already_up_to_date',
         resumeExternalId,
         rankingRunId,
-        query,
+        query: poolQuery,
         topN,
         blacklist,
         blacklistedSkipped,
@@ -279,7 +313,7 @@ export class SyncResumeSkillsUseCase {
       status: 'SUCCEEDED',
       resumeExternalId,
       rankingRunId,
-      query,
+      query: poolQuery,
       topN,
       blacklist,
       blacklistedSkipped,

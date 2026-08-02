@@ -130,8 +130,8 @@ sequenceDiagram
 **Цель:** поднятие резюме и актуализация ключевых навыков по результатам Skills Ranking.
 
 1. **Resume Maintainer** (каждый час): Playwright `raise resume` если доступно; лог в `ResumeAction`
-2. **Skills Ranking** (cron / вручную): `POST /api/skills-ranking` с обязательным `profiles[]` → авторизованная сессия → полный SERP → ключевые навыки → `SkillsRankingRun` + `SkillsRankingSkill`. Без LLM, без правок резюме, без `Vacancy`/`ApplyJob`. `DRY_RUN` не влияет.
-3. **Resume Skills Sync**: `POST /api/resume-skills-sync` — одно резюме + `rankingRunId` + `query` → optional `blacklist` (substring) → top-30 → full sync add/remove на Magritte `/resume/edit/{id}/keySkills` (+ `skillsLevels` → всем «Продвинутый») → verify до Save → `ResumeAction` типа `SKILLS_SYNC`. Без LLM. `DRY_RUN` не влияет. Старый LLM Resume Optimizer удалён.
+2. **Skills Ranking** (cron / вручную): `POST /api/skills-ranking` с обязательным `profiles[]` → авторизованная сессия → полный SERP → ключевые навыки → `SkillsRankingRun` + `SkillsRankingSkill` (пулы профилей **смешиваются**: один `unique` на run, `counts` суммируются, `query=merged`; одна и та же вакансия по `externalId` учитывается **один раз**). Без LLM, без правок резюме, без `Vacancy`/`ApplyJob`. `DRY_RUN` / working hours не влияют.
+3. **Resume Skills Sync**: `POST /api/resume-skills-sync` — одно резюме + `rankingRunId` (optional `query` только для legacy) → optional `blacklist` (substring) → top-30 из merged-пула → full sync add/remove на Magritte `/resume/edit/{id}/keySkills` (+ `skillsLevels` → всем «Продвинутый») → verify до Save → `ResumeAction` типа `SKILLS_SYNC`. Без LLM. `DRY_RUN` / working hours не влияют. Старый LLM Resume Optimizer удалён.
 
 **Done when (Skills Ranking):** сессия down → ошибка; сбой сбора → `FAILED` + reason; успех → `runId` + skills.
 

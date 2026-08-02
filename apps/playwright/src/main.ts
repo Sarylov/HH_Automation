@@ -113,6 +113,7 @@ async function main(): Promise<void> {
             searchField?: 'name' | 'company_name' | 'description';
             itemsOnPage?: number;
             delayMs?: number;
+            excludeExternalIds?: string[];
           };
           const label = body.label?.trim();
           const text = body.text?.trim();
@@ -133,6 +134,7 @@ async function main(): Promise<void> {
             searchField: body.searchField,
             itemsOnPage: body.itemsOnPage,
             delayMs: body.delayMs,
+            excludeExternalIds: body.excludeExternalIds,
           });
           sendJson(res, result.ok ? 200 : 502, result);
           return;

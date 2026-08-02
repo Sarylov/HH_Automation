@@ -186,6 +186,7 @@ export type PlaywrightSkillsCollectProfileInput = {
   searchField?: 'name' | 'company_name' | 'description';
   itemsOnPage?: number;
   delayMs?: number;
+  excludeExternalIds?: string[];
 };
 
 export type PlaywrightSkillsCollectVacancyItem = {
@@ -208,6 +209,7 @@ export type PlaywrightSkillsCollectProfileResult = {
   };
   expectedTotal: number;
   collected: number;
+  skippedAlreadySeen?: number;
   items: PlaywrightSkillsCollectVacancyItem[];
   vacanciesWithoutSkills: string[];
   reason?: string;

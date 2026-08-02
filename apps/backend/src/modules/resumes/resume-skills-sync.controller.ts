@@ -21,9 +21,11 @@ class SyncResumeSkillsDto {
   @IsUUID()
   rankingRunId!: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(128)
-  query!: string;
+  /** Legacy filter by profile label; omit to use merged pool. */
+  query?: string;
 
   @IsOptional()
   @IsInt()
