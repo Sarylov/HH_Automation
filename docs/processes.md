@@ -3,7 +3,8 @@
 | Workflow | Schedule | Backend endpoint |
 |----------|----------|------------------|
 | Resume Maintainer | Every hour | `POST /api/workflows/resume-maintainer` |
-| Resume Optimizer | Every 3 days | `POST /api/workflows/resume-optimizer` |
+| Skills Ranking | Every 3 days / manual | `POST /api/skills-ranking` (`profiles` required) |
+| Resume Optimizer | Every 3 days (legacy) | `POST /api/workflows/resume-optimizer` |
 | Vacancy Scanner | Once per day (working hours) | `POST /api/workflows/vacancy-scanner` |
 | Apply next | Every few minutes (working hours) | `POST /api/workflows/apply-next` |
 | Apply (manual) | On demand | `POST /api/workflows/apply` + `vacancyId` |

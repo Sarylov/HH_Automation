@@ -14,6 +14,7 @@ import { updateResume } from './actions/resume/update.js';
 import { listChats } from './actions/chat/list.js';
 import { readChat } from './actions/chat/read.js';
 import { sendChatMessage } from './actions/chat/send.js';
+import { collectProfileSkills } from './actions/skills/collect-profile.js';
 
 const logger = createLogger('playwright-http');
 
@@ -95,6 +96,42 @@ async function main(): Promise<void> {
             workFormat: body.workFormat,
             searchPeriod: body.searchPeriod,
             searchField: body.searchField,
+          });
+          sendJson(res, result.ok ? 200 : 502, result);
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/skills/collect-profile') {
+          const body = (await readJsonBody(req)) as {
+            label?: string;
+            text?: string;
+            area?: string;
+            excludedText?: string;
+            workFormat?: 'REMOTE';
+            searchPeriod?: number;
+            searchField?: 'name' | 'company_name' | 'description';
+            itemsOnPage?: number;
+            delayMs?: number;
+          };
+          const label = body.label?.trim();
+          const text = body.text?.trim();
+          if (!label || !text) {
+            sendJson(res, 400, {
+              ok: false,
+              reason: 'label_and_text_required',
+            });
+            return;
+          }
+          const result = await collectProfileSkills(config, {
+            label,
+            text,
+            area: body.area,
+            excludedText: body.excludedText,
+            workFormat: body.workFormat,
+            searchPeriod: body.searchPeriod,
+            searchField: body.searchField,
+            itemsOnPage: body.itemsOnPage,
+            delayMs: body.delayMs,
           });
           sendJson(res, result.ok ? 200 : 502, result);
           return;

@@ -127,12 +127,15 @@ sequenceDiagram
 
 ## Phase 4 — Resume maintenance
 
-**Цель:** поднятие резюме и редкая оптимизация под рынок.
+**Цель:** поднятие резюме и сбор актуальных навыков рынка по явным поисковым профилям.
 
 1. **Resume Maintainer** (каждый час): Playwright `raise resume` если доступно; лог в `ResumeAction`
-2. **Resume Optimizer** (раз в 3 дня): агрегация tech из свежих `Vacancy` → LLM diff → Playwright update **двух** резюме
+2. **Skills Ranking** (cron / вручную): `POST /api/skills-ranking` с обязательным `profiles[]` → авторизованная сессия → полный SERP по каждому профилю → ключевые навыки с карточек → агрегация частот → `SkillsRankingRun` + `SkillsRankingSkill` (дата прогона в `startedAt`). Без LLM, без правок резюме, без связи с `Vacancy`/`ApplyJob`.
+3. **Resume Skills Sync** (позже, отдельно): сверка skills резюме с выбранным `runId` — пока не реализуется.
 
-**Done when:** maintainer идемпотентен в пределах часа; optimizer пишет changelog и откатываемый снимок полей.
+**Done when (Skills Ranking):** сессия down → ошибка; любой сбой поиска/сбора → `FAILED` + reason (HTTP 5xx); успех → `SUCCEEDED` + `runId` и skills; stats с expected/collected per query и суммарно.
+
+**Done when (Maintainer):** идемпотентен в пределах часа.
 
 ---
 

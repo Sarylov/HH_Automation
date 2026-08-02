@@ -41,7 +41,9 @@
 ## Phase 4 — Resume maintenance
 
 - [x] Resume Maintainer (hourly raise)
-- [x] Resume Optimizer (every 3 days, two resumes)
+- [x] Resume Optimizer (legacy; every 3 days, two resumes)
+- [ ] Skills Ranking (`POST /api/skills-ranking` → `SkillsRankingRun` + skills)
+- [ ] Resume Skills Sync (later; by ranking `runId`)
 
 ## Phase 5 — Messaging
 
