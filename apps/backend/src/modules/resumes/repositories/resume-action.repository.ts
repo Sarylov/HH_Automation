@@ -49,19 +49,4 @@ export class ResumeActionRepository {
       orderBy: { createdAt: 'desc' },
     });
   }
-
-  async findRecentOptimize(
-    resumeId: string,
-    since: Date,
-  ): Promise<ResumeAction | null> {
-    return this.prisma.resumeAction.findFirst({
-      where: {
-        resumeId,
-        type: ResumeActionType.OPTIMIZE,
-        status: ResumeActionStatus.SUCCEEDED,
-        createdAt: { gte: since },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
 }

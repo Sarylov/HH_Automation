@@ -41,9 +41,9 @@
 ## Phase 4 — Resume maintenance
 
 - [x] Resume Maintainer (hourly raise)
-- [x] Resume Optimizer (legacy; every 3 days, two resumes)
-- [ ] Skills Ranking (`POST /api/skills-ranking` → `SkillsRankingRun` + skills)
-- [ ] Resume Skills Sync (later; by ranking `runId`)
+- [x] Skills Ranking (`POST /api/skills-ranking` → `SkillsRankingRun` + skills)
+- [x] Resume Skills Sync (`POST /api/resume-skills-sync` → Magritte keySkills, `SKILLS_SYNC`)
+- [x] Remove legacy LLM Resume Optimizer
 
 ## Phase 5 — Messaging
 

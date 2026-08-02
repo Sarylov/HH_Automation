@@ -8,6 +8,6 @@ import { RankSkillsUseCase } from './use-cases/rank-skills.use-case';
   imports: [AuthModule],
   controllers: [SkillsRankingController],
   providers: [SkillsRankingRunRepository, RankSkillsUseCase],
-  exports: [RankSkillsUseCase],
+  exports: [RankSkillsUseCase, SkillsRankingRunRepository],
 })
 export class SkillsRankingModule {}

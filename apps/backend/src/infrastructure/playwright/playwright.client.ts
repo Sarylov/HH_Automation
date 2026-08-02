@@ -119,6 +119,19 @@ export type PlaywrightUpdateResumeResult = {
   screenshotPath?: string;
 };
 
+export type PlaywrightSyncResumeSkillsResult = {
+  ok: boolean;
+  externalId: string;
+  updated?: boolean;
+  skipped?: boolean;
+  before?: string[];
+  after?: string[];
+  added?: string[];
+  removed?: string[];
+  reason?: string;
+  screenshotPath?: string;
+};
+
 export type PlaywrightChatListItem = {
   externalId: string;
   url: string;
@@ -387,6 +400,38 @@ export class PlaywrightClient {
       },
     );
     return (await res.json()) as PlaywrightUpdateResumeResult;
+  }
+
+  async syncResumeSkills(input: {
+    externalId: string;
+    desiredSkills: string[];
+  }): Promise<PlaywrightSyncResumeSkillsResult> {
+    try {
+      const res = await fetch(
+        `${this.baseUrl()}/resumes/${input.externalId}/sync-skills`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ desiredSkills: input.desiredSkills }),
+          signal: AbortSignal.timeout(300_000),
+        },
+      );
+      return (await res.json()) as PlaywrightSyncResumeSkillsResult;
+    } catch (error) {
+      this.logger.warn({
+        msg: 'Resume skills sync failed',
+        externalId: input.externalId,
+        error: String(error),
+      });
+      return {
+        ok: false,
+        externalId: input.externalId,
+        reason:
+          error instanceof Error
+            ? error.message
+            : 'playwright_skills_sync_unreachable',
+      };
+    }
   }
 
   async listChats(): Promise<PlaywrightListChatsResult> {

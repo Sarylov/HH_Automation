@@ -127,15 +127,15 @@ sequenceDiagram
 
 ## Phase 4 — Resume maintenance
 
-**Цель:** поднятие резюме и сбор актуальных навыков рынка по явным поисковым профилям.
+**Цель:** поднятие резюме и актуализация ключевых навыков по результатам Skills Ranking.
 
 1. **Resume Maintainer** (каждый час): Playwright `raise resume` если доступно; лог в `ResumeAction`
-2. **Skills Ranking** (cron / вручную): `POST /api/skills-ranking` с обязательным `profiles[]` → авторизованная сессия → полный SERP по каждому профилю → ключевые навыки с карточек → агрегация частот → `SkillsRankingRun` + `SkillsRankingSkill` (дата прогона в `startedAt`). Без LLM, без правок резюме, без связи с `Vacancy`/`ApplyJob`.
-3. **Resume Skills Sync** (позже, отдельно): сверка skills резюме с выбранным `runId` — пока не реализуется.
+2. **Skills Ranking** (cron / вручную): `POST /api/skills-ranking` с обязательным `profiles[]` → авторизованная сессия → полный SERP → ключевые навыки → `SkillsRankingRun` + `SkillsRankingSkill`. Без LLM, без правок резюме, без `Vacancy`/`ApplyJob`. `DRY_RUN` не влияет.
+3. **Resume Skills Sync**: `POST /api/resume-skills-sync` — одно резюме + `rankingRunId` + `query` → optional `blacklist` (substring) → top-30 → full sync add/remove на Magritte `/resume/edit/{id}/keySkills` (+ `skillsLevels` → всем «Продвинутый») → verify до Save → `ResumeAction` типа `SKILLS_SYNC`. Без LLM. `DRY_RUN` не влияет. Старый LLM Resume Optimizer удалён.
 
-**Done when (Skills Ranking):** сессия down → ошибка; любой сбой поиска/сбора → `FAILED` + reason (HTTP 5xx); успех → `SUCCEEDED` + `runId` и skills; stats с expected/collected per query и суммарно.
+**Done when (Skills Ranking):** сессия down → ошибка; сбой сбора → `FAILED` + reason; успех → `runId` + skills.
 
-**Done when (Maintainer):** идемпотентен в пределах часа.
+**Done when (Skills Sync):** already up to date → `SKIPPED`; mismatch до Save → 500 без Save; успех → changelog; maintainer идемпотентен в пределах часа.
 
 ---
 

@@ -56,6 +56,7 @@ enum ApplyJobStatus {
 enum ResumeActionType {
   RAISE
   OPTIMIZE
+  SKILLS_SYNC
   SKIP
 }
 

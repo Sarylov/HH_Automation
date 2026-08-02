@@ -37,7 +37,7 @@ Controller → UseCase → Repository → PostgreSQL (Prisma)
 |---------|-------------------|------------------|
 | Resume Maintainer | Every hour | n8n → `POST /workflows/resume-maintainer` |
 | Skills Ranking | Every 3 days / manual | n8n → `POST /skills-ranking` |
-| Resume Optimizer | (legacy / later sync) | n8n → `POST /workflows/resume-optimizer` |
+| Resume Skills Sync | After ranking / manual | n8n → `POST /resume-skills-sync` |
 | Vacancy Scanner | Once per day (working hours) | n8n → `POST /workflows/vacancy-scanner` |
 | Apply Worker | n8n cron pace | n8n → `POST /workflows/apply-next` (or `apply` + vacancyId for smoke) |
 | Chat Processor | Every few minutes | n8n → `POST /workflows/chat-processor` |

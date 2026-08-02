@@ -85,4 +85,32 @@ export class SkillsRankingRunRepository {
       include: { skills: true },
     });
   }
+
+  async findSucceededSkillsForQuery(input: {
+    runId: string;
+    query: string;
+  }): Promise<{
+    run: SkillsRankingRun | null;
+    skills: SkillsRankingSkill[];
+  }> {
+    const run = await this.prisma.skillsRankingRun.findFirst({
+      where: {
+        id: input.runId,
+        status: SkillsRankingRunStatus.SUCCEEDED,
+      },
+    });
+    if (!run) {
+      return { run: null, skills: [] };
+    }
+
+    const skills = await this.prisma.skillsRankingSkill.findMany({
+      where: {
+        runId: input.runId,
+        query: input.query,
+      },
+      orderBy: [{ counts: 'desc' }, { unique: 'asc' }],
+    });
+
+    return { run, skills };
+  }
 }

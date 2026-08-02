@@ -95,12 +95,12 @@ docker compose up -d
 | `DATABASE_URL` | Overridden inside compose to `@postgres` for backend |
 | `PLAYWRIGHT_BASE_URL` | Overridden to `http://playwright:3100` for backend |
 | `BACKEND_API_URL` | `http://backend:3000/api` for n8n |
-| `LLM_*` | Required for apply / chat / resume optimize |
-| `DRY_RUN` | `true` for first smoke; `false` for live |
+| `LLM_*` | Required for apply / chat |
+| `DRY_RUN` | `true` for first smoke; `false` for live (does **not** affect skills-ranking / resume-skills-sync) |
 | `WORKING_HOURS_*` | Gate scanner/apply |
 | `APPLY_MAX_PER_HOUR` / `APPLY_MAX_PER_DAY` | Anti-ban caps (in-memory per process) |
 | `APPLY_JOB_STUCK_MINUTES` | Reclaim stuck RUNNING in apply-next (default 30) |
-| `HH_RESUME_IDS` | Two resumes for optimizer |
+| `HH_RESUME_IDS` | Target resumes for maintainer raise |
 | `N8N_DOMAIN` / `WEB_DOMAIN` / `TRAEFIK_*` | Public n8n + Ops UI via Traefik |
 | `WEB_PORT` | Local bind for Ops UI (default `8080`) |
 

@@ -1,6 +1,5 @@
 import { parseCoverLetterResult } from './cover-letter.schema';
 import { parseVacancyAnalysis } from './vacancy-analysis.schema';
-import { parseResumeOptimizeSuggestion } from './resume-optimize.schema';
 import { parseChatReplyResult } from './chat-reply.schema';
 
 describe('vacancy-analysis schema', () => {
@@ -56,21 +55,6 @@ describe('cover-letter schema', () => {
         wordCount: 0,
       }),
     ).toThrow();
-  });
-});
-
-describe('resume-optimize schema', () => {
-  it('parses valid suggestion', () => {
-    const result = parseResumeOptimizeSuggestion({
-      version: 'v1',
-      skillsToAdd: ['Playwright'],
-      skillsToRemove: [],
-      aboutHint: null,
-      rationale: ['Demand'],
-      shouldUpdate: true,
-    });
-    expect(result.skillsToAdd).toEqual(['Playwright']);
-    expect(result.shouldUpdate).toBe(true);
   });
 });
 
