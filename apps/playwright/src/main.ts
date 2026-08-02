@@ -11,9 +11,11 @@ import { listResumes } from './actions/resume/list.js';
 import { raiseResume } from './actions/resume/raise.js';
 import { readResume } from './actions/resume/read.js';
 import { updateResume } from './actions/resume/update.js';
+import { syncResumeSkills } from './actions/resume/sync-skills.js';
 import { listChats } from './actions/chat/list.js';
 import { readChat } from './actions/chat/read.js';
 import { sendChatMessage } from './actions/chat/send.js';
+import { collectProfileSkills } from './actions/skills/collect-profile.js';
 
 const logger = createLogger('playwright-http');
 
@@ -100,6 +102,42 @@ async function main(): Promise<void> {
           return;
         }
 
+        if (method === 'POST' && url.pathname === '/skills/collect-profile') {
+          const body = (await readJsonBody(req)) as {
+            label?: string;
+            text?: string;
+            area?: string;
+            excludedText?: string;
+            workFormat?: 'REMOTE';
+            searchPeriod?: number;
+            searchField?: 'name' | 'company_name' | 'description';
+            itemsOnPage?: number;
+            delayMs?: number;
+          };
+          const label = body.label?.trim();
+          const text = body.text?.trim();
+          if (!label || !text) {
+            sendJson(res, 400, {
+              ok: false,
+              reason: 'label_and_text_required',
+            });
+            return;
+          }
+          const result = await collectProfileSkills(config, {
+            label,
+            text,
+            area: body.area,
+            excludedText: body.excludedText,
+            workFormat: body.workFormat,
+            searchPeriod: body.searchPeriod,
+            searchField: body.searchField,
+            itemsOnPage: body.itemsOnPage,
+            delayMs: body.delayMs,
+          });
+          sendJson(res, result.ok ? 200 : 502, result);
+          return;
+        }
+
         const vacancyMatch = url.pathname.match(
           /^\/vacancies\/(\d+)(?:\/(apply-stub|apply))?$/,
         );
@@ -135,7 +173,7 @@ async function main(): Promise<void> {
         }
 
         const resumeMatch = url.pathname.match(
-          /^\/resumes\/([a-f0-9]+)(?:\/(raise|update))?$/i,
+          /^\/resumes\/([a-f0-9]+)(?:\/(raise|update|sync-skills))?$/i,
         );
         if (resumeMatch) {
           const externalId = resumeMatch[1];
@@ -162,6 +200,23 @@ async function main(): Promise<void> {
               skills: body.skills,
               about: body.about,
               dryRun: body.dryRun,
+            });
+            sendJson(res, result.ok ? 200 : 502, result);
+            return;
+          }
+          if (method === 'POST' && action === 'sync-skills') {
+            const body = (await readJsonBody(req)) as {
+              desiredSkills?: string[];
+            };
+            if (!Array.isArray(body.desiredSkills)) {
+              sendJson(res, 400, {
+                ok: false,
+                reason: 'desiredSkills_required',
+              });
+              return;
+            }
+            const result = await syncResumeSkills(config, externalId, {
+              desiredSkills: body.desiredSkills,
             });
             sendJson(res, result.ok ? 200 : 502, result);
             return;

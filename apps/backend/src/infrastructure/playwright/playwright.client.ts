@@ -119,6 +119,19 @@ export type PlaywrightUpdateResumeResult = {
   screenshotPath?: string;
 };
 
+export type PlaywrightSyncResumeSkillsResult = {
+  ok: boolean;
+  externalId: string;
+  updated?: boolean;
+  skipped?: boolean;
+  before?: string[];
+  after?: string[];
+  added?: string[];
+  removed?: string[];
+  reason?: string;
+  screenshotPath?: string;
+};
+
 export type PlaywrightChatListItem = {
   externalId: string;
   url: string;
@@ -159,6 +172,44 @@ export type PlaywrightSendChatResult = {
   url: string;
   sent?: boolean;
   dryRun?: boolean;
+  reason?: string;
+  screenshotPath?: string;
+};
+
+export type PlaywrightSkillsCollectProfileInput = {
+  label: string;
+  text: string;
+  area?: string;
+  excludedText?: string;
+  workFormat?: 'REMOTE';
+  searchPeriod?: number;
+  searchField?: 'name' | 'company_name' | 'description';
+  itemsOnPage?: number;
+  delayMs?: number;
+};
+
+export type PlaywrightSkillsCollectVacancyItem = {
+  externalId: string;
+  url: string;
+  skills: string[];
+};
+
+export type PlaywrightSkillsCollectProfileResult = {
+  ok: boolean;
+  label: string;
+  query: {
+    text: string;
+    area?: string;
+    excludedText?: string;
+    workFormat?: 'REMOTE';
+    searchPeriod: number;
+    searchField: 'name' | 'company_name' | 'description';
+    itemsOnPage: number;
+  };
+  expectedTotal: number;
+  collected: number;
+  items: PlaywrightSkillsCollectVacancyItem[];
+  vacanciesWithoutSkills: string[];
   reason?: string;
   screenshotPath?: string;
 };
@@ -351,6 +402,38 @@ export class PlaywrightClient {
     return (await res.json()) as PlaywrightUpdateResumeResult;
   }
 
+  async syncResumeSkills(input: {
+    externalId: string;
+    desiredSkills: string[];
+  }): Promise<PlaywrightSyncResumeSkillsResult> {
+    try {
+      const res = await fetch(
+        `${this.baseUrl()}/resumes/${input.externalId}/sync-skills`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ desiredSkills: input.desiredSkills }),
+          signal: AbortSignal.timeout(300_000),
+        },
+      );
+      return (await res.json()) as PlaywrightSyncResumeSkillsResult;
+    } catch (error) {
+      this.logger.warn({
+        msg: 'Resume skills sync failed',
+        externalId: input.externalId,
+        error: String(error),
+      });
+      return {
+        ok: false,
+        externalId: input.externalId,
+        reason:
+          error instanceof Error
+            ? error.message
+            : 'playwright_skills_sync_unreachable',
+      };
+    }
+  }
+
   async listChats(): Promise<PlaywrightListChatsResult> {
     const res = await fetch(`${this.baseUrl()}/chats`, {
       signal: AbortSignal.timeout(90_000),
@@ -384,5 +467,56 @@ export class PlaywrightClient {
       },
     );
     return (await res.json()) as PlaywrightSendChatResult;
+  }
+
+  async collectProfileSkills(
+    input: PlaywrightSkillsCollectProfileInput,
+  ): Promise<PlaywrightSkillsCollectProfileResult> {
+    try {
+      const res = await fetch(`${this.baseUrl()}/skills/collect-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+        // Full SERP + per-vacancy skills can take a long time
+        signal: AbortSignal.timeout(1_800_000),
+      });
+      const body = (await res.json()) as PlaywrightSkillsCollectProfileResult;
+      if (!res.ok) {
+        this.logger.warn({
+          msg: 'Skills collect HTTP error',
+          status: res.status,
+          label: input.label,
+          reason: body.reason,
+        });
+      }
+      return body;
+    } catch (error) {
+      this.logger.warn({
+        msg: 'Skills collect failed',
+        label: input.label,
+        error: String(error),
+      });
+      return {
+        ok: false,
+        label: input.label,
+        query: {
+          text: input.text,
+          area: input.area,
+          excludedText: input.excludedText,
+          workFormat: input.workFormat,
+          searchPeriod: input.searchPeriod ?? 3,
+          searchField: input.searchField ?? 'name',
+          itemsOnPage: input.itemsOnPage ?? 100,
+        },
+        expectedTotal: 0,
+        collected: 0,
+        items: [],
+        vacanciesWithoutSkills: [],
+        reason:
+          error instanceof Error
+            ? error.message
+            : 'playwright_skills_collect_unreachable',
+      };
+    }
   }
 }

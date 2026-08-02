@@ -1,0 +1,15 @@
+{
+  "name": "Resume Skills Sync",
+  "meta": {
+    "schedule": "After Skills Ranking (manual or chained)",
+    "responsibility": "orchestration-only"
+  },
+  "nodesHint": [
+    "HTTP Request POST {{$env.BACKEND_API_URL}}/resume-skills-sync",
+    "Body: { \"correlationId\": \"{{$execution.id}}\", \"resumeExternalId\": \"…\", \"rankingRunId\": \"{{skillsRanking.runId}}\", \"query\": \"frontend remote\", \"topN\": 30, \"blacklist\": [\"angular\", \"c++\"] }",
+    "One resume + one query per call; chain another call for second query/resume if needed",
+    "On SKIPPED (already_up_to_date) treat as success",
+    "On HTTP 5xx: Error Workflow; do not retry blindly without checking session",
+    "Requires Playwright session up; ignores DRY_RUN"
+  ]
+}

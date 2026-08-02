@@ -56,6 +56,7 @@ enum ApplyJobStatus {
 enum ResumeActionType {
   RAISE
   OPTIMIZE
+  SKILLS_SYNC
   SKIP
 }
 
@@ -285,4 +286,47 @@ model FollowUpState {
   @@index([status, nextReminderAt])
   @@index([reminderCount])
   @@map("follow_up_states")
+}
+
+enum SkillsRankingRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// One skills-collect run for N search profiles (no link to Vacancy/Apply).
+model SkillsRankingRun {
+  id            String                  @id @default(uuid()) @db.Uuid
+  status        SkillsRankingRunStatus  @default(PENDING)
+  startedAt     DateTime?               @map("started_at")
+  finishedAt    DateTime?               @map("finished_at")
+  profiles      Json
+  stats         Json?
+  correlationId String?                 @map("correlation_id")
+  errorMessage  String?                 @map("error_message")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  skills SkillsRankingSkill[]
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("skills_ranking_runs")
+}
+
+/// Aggregated skill frequency for one run + query label.
+model SkillsRankingSkill {
+  id     String @id @default(uuid()) @db.Uuid
+  runId  String @map("run_id") @db.Uuid
+  query  String
+  name   String
+  unique String
+  counts Int
+
+  run SkillsRankingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, query, unique])
+  @@index([runId, query, counts])
+  @@map("skills_ranking_skills")
 }

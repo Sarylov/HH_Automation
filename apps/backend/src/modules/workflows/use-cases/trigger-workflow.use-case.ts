@@ -5,13 +5,11 @@ import { ScanVacanciesUseCase } from '../../vacancies/use-cases/scan-vacancies.u
 import { ApplyToVacancyUseCase } from '../../vacancies/use-cases/apply-to-vacancy.use-case';
 import { ApplyNextUseCase } from '../../vacancies/use-cases/apply-next.use-case';
 import { MaintainResumesUseCase } from '../../resumes/use-cases/maintain-resumes.use-case';
-import { OptimizeResumesUseCase } from '../../resumes/use-cases/optimize-resumes.use-case';
 import { ProcessChatsUseCase } from '../../messaging/use-cases/process-chats.use-case';
 import { ProcessFollowUpsUseCase } from '../../messaging/use-cases/process-follow-ups.use-case';
 
 export type WorkflowKey =
   | 'resume-maintainer'
-  | 'resume-optimizer'
   | 'vacancy-scanner'
   | 'apply'
   | 'apply-next'
@@ -35,7 +33,6 @@ export type TriggerWorkflowInput = {
 
 const WORKFLOW_MAP: Record<WorkflowKey, WorkflowName> = {
   'resume-maintainer': WorkflowName.RESUME_MAINTAINER,
-  'resume-optimizer': WorkflowName.RESUME_OPTIMIZER,
   'vacancy-scanner': WorkflowName.VACANCY_SCANNER,
   apply: WorkflowName.APPLY_WORKER,
   'apply-next': WorkflowName.APPLY_WORKER,
@@ -53,7 +50,6 @@ export class TriggerWorkflowUseCase {
     private readonly applyToVacancy: ApplyToVacancyUseCase,
     private readonly applyNext: ApplyNextUseCase,
     private readonly maintainResumes: MaintainResumesUseCase,
-    private readonly optimizeResumes: OptimizeResumesUseCase,
     private readonly processChats: ProcessChatsUseCase,
     private readonly processFollowUps: ProcessFollowUpsUseCase,
   ) {}
@@ -92,12 +88,6 @@ export class TriggerWorkflowUseCase {
 
     if (key === 'resume-maintainer') {
       return this.maintainResumes.execute({
-        correlationId: input.correlationId,
-      });
-    }
-
-    if (key === 'resume-optimizer') {
-      return this.optimizeResumes.execute({
         correlationId: input.correlationId,
       });
     }

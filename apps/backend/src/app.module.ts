@@ -11,6 +11,7 @@ import { VacanciesModule } from './modules/vacancies/vacancies.module';
 import { ResumesModule } from './modules/resumes/resumes.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { WorkflowsModule } from './modules/workflows/workflows.module';
+import { SkillsRankingModule } from './modules/skills-ranking/skills-ranking.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
     VacanciesModule,
     ResumesModule,
     MessagingModule,
+    SkillsRankingModule,
     HealthModule,
     MetricsModule,
     WorkflowsModule,

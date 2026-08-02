@@ -77,7 +77,6 @@ class TriggerWorkflowDto {
 
 const ALLOWED: ReadonlySet<WorkflowKey> = new Set([
   'resume-maintainer',
-  'resume-optimizer',
   'vacancy-scanner',
   'apply',
   'apply-next',
