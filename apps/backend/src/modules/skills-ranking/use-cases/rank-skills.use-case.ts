@@ -31,7 +31,11 @@ type ProfileStat = {
   expectedTotal: number;
   collected: number;
   vacanciesWithoutSkills: number;
+  skippedAlreadySeen: number;
 };
+
+/** Stored on every skill row; profiles are mixed into one pool per run. */
+export const MERGED_SKILLS_QUERY = 'merged';
 
 type AggregatedSkill = {
   query: string;
@@ -39,6 +43,58 @@ type AggregatedSkill = {
   unique: string;
   counts: number;
 };
+
+export type SkillsVacancyItem = {
+  externalId: string;
+  skills: string[];
+};
+
+/**
+ * Merge skills across profiles. Each vacancy `externalId` contributes at most once.
+ */
+export function aggregateMergedSkills(
+  items: SkillsVacancyItem[],
+  seenVacancyIds: Set<string>,
+): { skills: AggregatedSkill[]; duplicatesSkipped: number } {
+  const aggregated = new Map<string, AggregatedSkill>();
+  let duplicatesSkipped = 0;
+
+  for (const item of items) {
+    const vacancyId = item.externalId?.trim();
+    if (!vacancyId) continue;
+    if (seenVacancyIds.has(vacancyId)) {
+      duplicatesSkipped += 1;
+      continue;
+    }
+    seenVacancyIds.add(vacancyId);
+
+    const seenInVacancy = new Set<string>();
+    for (const raw of item.skills) {
+      const name = raw.replace(/\s+/g, ' ').trim();
+      if (!name) continue;
+      const unique = name.toLowerCase();
+      if (seenInVacancy.has(unique)) continue;
+      seenInVacancy.add(unique);
+
+      const existing = aggregated.get(unique);
+      if (existing) {
+        existing.counts += 1;
+      } else {
+        aggregated.set(unique, {
+          query: MERGED_SKILLS_QUERY,
+          name,
+          unique,
+          counts: 1,
+        });
+      }
+    }
+  }
+
+  return {
+    skills: [...aggregated.values()],
+    duplicatesSkipped,
+  };
+}
 
 @Injectable()
 export class RankSkillsUseCase {
@@ -92,15 +148,18 @@ export class RankSkillsUseCase {
       this.config.get<string>('SKILLS_COLLECT_DELAY_MS', '1500'),
     );
     const aggregated = new Map<string, AggregatedSkill>();
+    const seenVacancyIds = new Set<string>();
     const perProfile: ProfileStat[] = [];
     let expectedTotalSum = 0;
     let collectedSum = 0;
+    let duplicatesSkippedSum = 0;
 
     try {
       for (const profile of profiles) {
         const collected = await this.playwright.collectProfileSkills({
           ...profile,
           delayMs: Number.isFinite(delayMs) ? delayMs : 1_500,
+          excludeExternalIds: [...seenVacancyIds],
         });
 
         if (!collected.ok) {
@@ -114,6 +173,7 @@ export class RankSkillsUseCase {
               perProfile,
               expectedTotalSum,
               collectedSum,
+              duplicatesSkippedSum,
               failedLabel: profile.label,
             } as Prisma.InputJsonValue,
           });
@@ -135,34 +195,25 @@ export class RankSkillsUseCase {
 
         expectedTotalSum += collected.expectedTotal;
         collectedSum += collected.collected;
+        duplicatesSkippedSum += collected.skippedAlreadySeen ?? 0;
         perProfile.push({
           label: collected.label,
           expectedTotal: collected.expectedTotal,
           collected: collected.collected,
           vacanciesWithoutSkills: collected.vacanciesWithoutSkills.length,
+          skippedAlreadySeen: collected.skippedAlreadySeen ?? 0,
         });
 
-        for (const item of collected.items) {
-          const seenInVacancy = new Set<string>();
-          for (const raw of item.skills) {
-            const name = raw.replace(/\s+/g, ' ').trim();
-            if (!name) continue;
-            const unique = name.toLowerCase();
-            if (seenInVacancy.has(unique)) continue;
-            seenInVacancy.add(unique);
+        const { skills: batchSkills, duplicatesSkipped } =
+          aggregateMergedSkills(collected.items, seenVacancyIds);
+        duplicatesSkippedSum += duplicatesSkipped;
 
-            const key = `${collected.label}::${unique}`;
-            const existing = aggregated.get(key);
-            if (existing) {
-              existing.counts += 1;
-            } else {
-              aggregated.set(key, {
-                query: collected.label,
-                name,
-                unique,
-                counts: 1,
-              });
-            }
+        for (const skill of batchSkills) {
+          const existing = aggregated.get(skill.unique);
+          if (existing) {
+            existing.counts += skill.counts;
+          } else {
+            aggregated.set(skill.unique, { ...skill });
           }
         }
       }
@@ -172,6 +223,8 @@ export class RankSkillsUseCase {
         perProfile,
         expectedTotalSum,
         collectedSum,
+        uniqueVacancies: seenVacancyIds.size,
+        duplicatesSkippedSum,
         skillCount: skills.length,
       };
 

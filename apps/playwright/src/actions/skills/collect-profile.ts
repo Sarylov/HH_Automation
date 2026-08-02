@@ -16,6 +16,8 @@ export type SkillsCollectProfileInput = {
   searchField?: 'name' | 'company_name' | 'description';
   itemsOnPage?: number;
   delayMs?: number;
+  /** Vacancy ids already counted from earlier profiles — skip skill fetch. */
+  excludeExternalIds?: string[];
 };
 
 export type SkillsCollectVacancyItem = {
@@ -38,6 +40,8 @@ export type SkillsCollectProfileResult = {
   };
   expectedTotal: number;
   collected: number;
+  /** Vacancies skipped because they appeared in a previous profile. */
+  skippedAlreadySeen: number;
   items: SkillsCollectVacancyItem[];
   vacanciesWithoutSkills: string[];
   reason?: string;
@@ -235,6 +239,11 @@ export async function collectProfileSkills(
   const delayMs = Math.max(input.delayMs ?? 1_500, 0);
   const area = input.area?.trim() || undefined;
   const excludedText = input.excludedText?.trim() || undefined;
+  const excludeExternalIds = new Set(
+    (input.excludeExternalIds ?? [])
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
   const query = {
     text: input.text,
     area,
@@ -306,6 +315,7 @@ export async function collectProfileSkills(
               query,
               expectedTotal: 0,
               collected: 0,
+              skippedAlreadySeen: 0,
               items: [],
               vacanciesWithoutSkills: [],
               reason: 'expected_total_not_found',
@@ -357,6 +367,7 @@ export async function collectProfileSkills(
           query,
           expectedTotal,
           collected: serp.length,
+          skippedAlreadySeen: 0,
           items: [],
           vacanciesWithoutSkills: [],
           reason: `incomplete_serp collected=${serp.length} expected=${expectedTotal}`,
@@ -366,12 +377,19 @@ export async function collectProfileSkills(
 
       const items: SkillsCollectVacancyItem[] = [];
       const vacanciesWithoutSkills: string[] = [];
+      let skippedAlreadySeen = 0;
+      let fetched = 0;
 
       for (let i = 0; i < serp.length; i += 1) {
         const vacancy = serp[i];
-        if (delayMs > 0 && i > 0) await sleep(delayMs);
+        if (excludeExternalIds.has(vacancy.externalId)) {
+          skippedAlreadySeen += 1;
+          continue;
+        }
+        if (delayMs > 0 && fetched > 0) await sleep(delayMs);
 
         const skills = await readVacancySkills(page, vacancy.url);
+        fetched += 1;
         if (skills.length === 0) {
           logger.info('Vacancy without key skills', {
             label,
@@ -392,13 +410,21 @@ export async function collectProfileSkills(
           skills,
         });
 
-        if ((i + 1) % 10 === 0 || i + 1 === serp.length) {
+        if (fetched % 10 === 0 || i + 1 === serp.length) {
           logger.info('Skills collect progress', {
             label,
-            done: i + 1,
-            total: serp.length,
+            done: fetched,
+            serpTotal: serp.length,
+            skippedAlreadySeen,
           });
         }
+      }
+
+      if (skippedAlreadySeen > 0) {
+        logger.info('Skipped vacancies already seen in earlier profiles', {
+          label,
+          skippedAlreadySeen,
+        });
       }
 
       return {
@@ -407,6 +433,7 @@ export async function collectProfileSkills(
         query,
         expectedTotal,
         collected: serp.length,
+        skippedAlreadySeen,
         items,
         vacanciesWithoutSkills,
       };
@@ -419,6 +446,7 @@ export async function collectProfileSkills(
       query,
       expectedTotal: 0,
       collected: 0,
+      skippedAlreadySeen: 0,
       items: [],
       vacanciesWithoutSkills: [],
       reason: error instanceof Error ? error.message : 'skills_collect_failed',

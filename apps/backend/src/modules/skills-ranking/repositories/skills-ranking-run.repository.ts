@@ -113,4 +113,27 @@ export class SkillsRankingRunRepository {
 
     return { run, skills };
   }
+
+  /** All skills for a succeeded run, ordered by counts desc. */
+  async findSucceededSkillsForRun(input: { runId: string }): Promise<{
+    run: SkillsRankingRun | null;
+    skills: SkillsRankingSkill[];
+  }> {
+    const run = await this.prisma.skillsRankingRun.findFirst({
+      where: {
+        id: input.runId,
+        status: SkillsRankingRunStatus.SUCCEEDED,
+      },
+    });
+    if (!run) {
+      return { run: null, skills: [] };
+    }
+
+    const skills = await this.prisma.skillsRankingSkill.findMany({
+      where: { runId: input.runId },
+      orderBy: [{ counts: 'desc' }, { unique: 'asc' }],
+    });
+
+    return { run, skills };
+  }
 }

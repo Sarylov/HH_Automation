@@ -1,5 +1,7 @@
+import type { SkillsRankingSkill } from '@prisma/client';
 import {
   isSkillBlacklisted,
+  mergeSkillsByUnique,
   normalizeBlacklist,
   pickTargetSkills,
 } from './sync-resume-skills.use-case';
@@ -30,7 +32,7 @@ describe('skill blacklist helpers', () => {
     ].map((s) => ({
       id: s.unique,
       runId: 'r',
-      query: 'q',
+      query: 'merged',
       ...s,
     }));
 
@@ -46,5 +48,39 @@ describe('skill blacklist helpers', () => {
       'vue',
     ]);
     expect(skipped.map((s) => s.unique)).toEqual(['angular', 'angularjs']);
+  });
+
+  it('merges legacy per-profile rows by unique summing counts', () => {
+    const rows = [
+      {
+        id: '1',
+        runId: 'r',
+        query: 'frontend remote',
+        name: 'React',
+        unique: 'react',
+        counts: 12,
+      },
+      {
+        id: '2',
+        runId: 'r',
+        query: 'frontend спб',
+        name: 'React',
+        unique: 'react',
+        counts: 10,
+      },
+      {
+        id: '3',
+        runId: 'r',
+        query: 'frontend remote',
+        name: 'Vue',
+        unique: 'vue',
+        counts: 5,
+      },
+    ] as SkillsRankingSkill[];
+
+    const merged = mergeSkillsByUnique(rows);
+    expect(merged).toHaveLength(2);
+    expect(merged[0]).toMatchObject({ unique: 'react', counts: 22 });
+    expect(merged[1]).toMatchObject({ unique: 'vue', counts: 5 });
   });
 });

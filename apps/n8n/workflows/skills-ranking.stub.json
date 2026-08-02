@@ -8,6 +8,7 @@
     "Cron Trigger (every 3 days)",
     "HTTP Request POST {{$env.BACKEND_API_URL}}/skills-ranking",
     "Body: { \"correlationId\": \"{{$execution.id}}\", \"profiles\": [ { \"label\": \"frontend remote\", \"text\": \"Frontend\", \"workFormat\": \"REMOTE\", \"excludedText\": \"fullstack,full-stack,backend,native,Angular,python\", \"searchPeriod\": 3, \"searchField\": \"name\", \"itemsOnPage\": 100 }, { \"label\": \"frontend спб\", \"text\": \"Frontend\", \"area\": \"2\", \"excludedText\": \"fullstack,full-stack,backend,native,Angular,python\", \"searchPeriod\": 3, \"searchField\": \"name\", \"itemsOnPage\": 100 } ] }",
+    "Skills from all profiles are merged into one pool (query=merged; counts sum; same vacancy externalId counted once)",
     "On success: use response.runId for later resume skills sync",
     "On HTTP 5xx / accepted:false: stop (do not sync resumes); Error Workflow",
     "Requires Playwright session up"
