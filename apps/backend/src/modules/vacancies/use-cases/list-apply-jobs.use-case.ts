@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ApplyJobStatus } from '@prisma/client';
+import { parseLocalDayYmd, todayLocalYmd } from '../../../lib/local-day';
 import {
   ApplyJobRepository,
   type ListApplyJobsResult,
@@ -9,6 +10,7 @@ export type ListApplyJobsInput = {
   status?: ApplyJobStatus;
   limit?: number;
   cursor?: string;
+  date?: string;
 };
 
 @Injectable()
@@ -19,9 +21,11 @@ export class ListApplyJobsUseCase {
 
   async execute(input: ListApplyJobsInput = {}): Promise<ListApplyJobsResult> {
     const limit = clampLimit(input.limit);
+    const date = resolveListDate(input.date);
     this.logger.log({
       msg: 'List apply jobs',
       status: input.status ?? null,
+      date,
       limit,
       hasCursor: Boolean(input.cursor),
     });
@@ -29,8 +33,17 @@ export class ListApplyJobsUseCase {
       status: input.status,
       limit,
       cursor: input.cursor,
+      date,
     });
   }
+}
+
+function resolveListDate(raw: string | undefined): string {
+  const date = raw ?? todayLocalYmd();
+  if (!parseLocalDayYmd(date)) {
+    throw new BadRequestException('Invalid date');
+  }
+  return date;
 }
 
 function clampLimit(raw: number | undefined): number {

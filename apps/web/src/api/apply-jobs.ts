@@ -5,6 +5,7 @@ export function fetchApplyJobs(params: {
   status?: string;
   limit?: number;
   cursor?: string;
+  date?: string;
 }): Promise<Paginated<ApplyJobItem>> {
   return apiGet(`/api/apply-jobs${toQuery(params)}`);
 }

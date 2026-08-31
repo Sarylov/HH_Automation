@@ -6,6 +6,7 @@ import {
   type Vacancy,
 } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { localDayRange } from '../../../lib/local-day';
 import {
   decodeCreatedAtCursor,
   encodeCreatedAtCursor,
@@ -49,6 +50,7 @@ export class ApplicationRepository {
     status?: ApplicationStatus;
     limit: number;
     cursor?: string;
+    date: string;
   }): Promise<ListApplicationsResult> {
     const decoded = input.cursor
       ? decodeCreatedAtCursor(input.cursor)
@@ -57,18 +59,38 @@ export class ApplicationRepository {
       throw new BadRequestException('Invalid cursor');
     }
 
-    const rows = await this.prisma.application.findMany({
-      where: {
-        ...(input.status ? { status: input.status } : {}),
+    const day = localDayRange(input.date);
+    if (!day) {
+      throw new BadRequestException('Invalid date');
+    }
+
+    const where: Prisma.ApplicationWhereInput = {
+      AND: [
+        {
+          OR: [
+            { appliedAt: { gte: day.start, lt: day.end } },
+            {
+              appliedAt: null,
+              createdAt: { gte: day.start, lt: day.end },
+            },
+          ],
+        },
+        ...(input.status ? [{ status: input.status }] : []),
         ...(decoded
-          ? {
-              OR: [
-                { createdAt: { lt: decoded.at } },
-                { createdAt: decoded.at, id: { lt: decoded.id } },
-              ],
-            }
-          : {}),
-      },
+          ? [
+              {
+                OR: [
+                  { createdAt: { lt: decoded.at } },
+                  { createdAt: decoded.at, id: { lt: decoded.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+
+    const rows = await this.prisma.application.findMany({
+      where,
       include: { vacancy: { select: vacancySelect } },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: input.limit + 1,

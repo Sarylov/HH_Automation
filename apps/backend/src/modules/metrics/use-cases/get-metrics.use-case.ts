@@ -7,6 +7,7 @@ import {
   WorkflowRunStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { startOfLocalDay } from '../../../lib/local-day';
 import { AuthSessionRepository } from '../../auth/repositories/auth-session.repository';
 import { ApplyRateLimitPolicy } from '../../hardening/policies/apply-rate-limit.policy';
 
@@ -53,7 +54,7 @@ export class GetMetricsUseCase {
   ) {}
 
   async execute(): Promise<MetricsResult> {
-    const startOfDay = this.startOfLocalDay();
+    const startOfDay = startOfLocalDay();
     const [
       succeededToday,
       failedToday,
@@ -164,11 +165,6 @@ export class GetMetricsUseCase {
 
     this.logger.log({ msg: 'Metrics snapshot', alerts: result.alerts });
     return result;
-  }
-
-  private startOfLocalDay(): Date {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
   }
 
   private intEnv(name: string, fallback: number): number {

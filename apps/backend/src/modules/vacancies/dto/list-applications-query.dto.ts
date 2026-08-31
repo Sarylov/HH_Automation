@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -26,4 +27,10 @@ export class ListApplicationsQueryDto {
   @IsString()
   @MaxLength(512)
   cursor?: string;
+
+  /** Local calendar day (YYYY-MM-DD). Defaults to today when omitted. */
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
 }

@@ -17,6 +17,7 @@ export class ApplicationsController {
       status: query.status,
       limit: query.limit,
       cursor: query.cursor,
+      date: query.date,
     });
     return {
       items: result.items.map(mapApplicationItem),

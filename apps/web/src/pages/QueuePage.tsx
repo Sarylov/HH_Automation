@@ -2,18 +2,22 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { fetchApplyJobs } from '../api/apply-jobs';
 import { StatusBadge } from '../components/StatusBadge';
+import { useOpsDate } from '../hooks/useOpsDate';
 import { formatDateTime } from '../lib/format';
+import { formatDayLabel } from '../lib/ops-date';
 
 const STATUS_FILTERS = ['', 'PENDING', 'RUNNING', 'DONE', 'FAILED'] as const;
 
 export function QueuePage() {
   const [status, setStatus] = useState<string>('');
+  const { date } = useOpsDate();
   const query = useQuery({
-    queryKey: ['apply-jobs', status],
+    queryKey: ['apply-jobs', status, date],
     queryFn: () =>
       fetchApplyJobs({
         status: status || undefined,
         limit: 50,
+        date,
       }),
   });
 
@@ -22,7 +26,12 @@ export function QueuePage() {
   return (
     <section className="rounded-lg border border-zinc-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
-        <h1 className="text-base font-semibold">Очередь ApplyJob</h1>
+        <h1 className="text-base font-semibold">
+          Очередь ApplyJob
+          <span className="ml-2 font-normal text-zinc-500">
+            · {formatDayLabel(date)}
+          </span>
+        </h1>
         <label className="flex items-center gap-2 text-sm text-zinc-600">
           Статус
           <select
@@ -50,7 +59,9 @@ export function QueuePage() {
       ) : null}
 
       {!query.isLoading && !query.isError && items.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-zinc-500">Очередь пуста</p>
+        <p className="px-4 py-6 text-sm text-zinc-500">
+          За {formatDayLabel(date).toLowerCase()} в очереди ничего нет
+        </p>
       ) : null}
 
       {items.length > 0 ? (
