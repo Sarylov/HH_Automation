@@ -1,6 +1,9 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { DayNavigator } from './DayNavigator';
 import { MetricsStrip } from './MetricsStrip';
 import { RefreshButton } from './RefreshButton';
+import { useOpsDate } from '../hooks/useOpsDate';
+import { opsPathWithDate } from '../lib/ops-date';
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded px-3 py-1.5 text-sm font-medium ${
@@ -10,6 +13,10 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export function Layout() {
+  const { date, setDate } = useOpsDate();
+  const queuePath = opsPathWithDate('/queue', date);
+  const applicationsPath = opsPathWithDate('/applications', date);
+
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <header className="border-b border-zinc-200 bg-white">
@@ -21,10 +28,10 @@ export function Layout() {
           <div className="flex flex-wrap items-center gap-2">
             <RefreshButton />
             <nav className="flex gap-2">
-              <NavLink to="/queue" className={linkClass}>
+              <NavLink to={queuePath} className={linkClass}>
                 Очередь
               </NavLink>
-              <NavLink to="/applications" className={linkClass}>
+              <NavLink to={applicationsPath} className={linkClass}>
                 Отклики
               </NavLink>
             </nav>
@@ -33,6 +40,7 @@ export function Layout() {
       </header>
       <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
         <MetricsStrip />
+        <DayNavigator date={date} onChange={setDate} />
         <Outlet />
       </main>
     </div>

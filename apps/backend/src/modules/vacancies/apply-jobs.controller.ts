@@ -13,6 +13,7 @@ export class ApplyJobsController {
       status: query.status,
       limit: query.limit,
       cursor: query.cursor,
+      date: query.date,
     });
     return {
       items: result.items.map(mapApplyJobItem),

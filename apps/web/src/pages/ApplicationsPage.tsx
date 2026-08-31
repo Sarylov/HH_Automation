@@ -3,12 +3,14 @@ import { useCallback, useMemo, useState } from 'react';
 import { fetchApplications } from '../api/applications';
 import { CoverLetterModal } from '../components/CoverLetterModal';
 import { StatusBadge } from '../components/StatusBadge';
+import { useOpsDate } from '../hooks/useOpsDate';
 import {
   formatApplyReason,
   formatApplicationStatus,
   isApplyWarningReason,
 } from '../lib/apply-labels';
 import { formatDateTime, previewText } from '../lib/format';
+import { formatDayLabel } from '../lib/ops-date';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -21,13 +23,15 @@ const STATUS_FILTERS = [
 export function ApplicationsPage() {
   const [status, setStatus] = useState<string>('');
   const [openId, setOpenId] = useState<string | null>(null);
+  const { date } = useOpsDate();
 
   const query = useQuery({
-    queryKey: ['applications', status],
+    queryKey: ['applications', status, date],
     queryFn: () =>
       fetchApplications({
         status: status || undefined,
         limit: 50,
+        date,
       }),
   });
 
@@ -41,7 +45,12 @@ export function ApplicationsPage() {
   return (
     <section className="rounded-lg border border-zinc-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
-        <h1 className="text-base font-semibold">Отклики</h1>
+        <h1 className="text-base font-semibold">
+          Отклики
+          <span className="ml-2 font-normal text-zinc-500">
+            · {formatDayLabel(date)}
+          </span>
+        </h1>
         <label className="flex items-center gap-2 text-sm text-zinc-600">
           Статус
           <select
@@ -69,7 +78,9 @@ export function ApplicationsPage() {
       ) : null}
 
       {!query.isLoading && !query.isError && items.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-zinc-500">Откликов пока нет</p>
+        <p className="px-4 py-6 text-sm text-zinc-500">
+          За {formatDayLabel(date).toLowerCase()} откликов нет
+        </p>
       ) : null}
 
       {items.length > 0 ? (

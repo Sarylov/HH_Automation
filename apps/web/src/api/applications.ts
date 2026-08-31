@@ -5,6 +5,7 @@ export function fetchApplications(params: {
   status?: string;
   limit?: number;
   cursor?: string;
+  date?: string;
 }): Promise<Paginated<ApplicationItem>> {
   return apiGet(`/api/applications${toQuery(params)}`);
 }

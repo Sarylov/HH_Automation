@@ -6,6 +6,7 @@ import {
   type Vacancy,
 } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { localDayRange } from '../../../lib/local-day';
 import {
   decodeCreatedAtCursor,
   encodeCreatedAtCursor,
@@ -45,6 +46,7 @@ export class ApplyJobRepository {
     status?: ApplyJobStatus;
     limit: number;
     cursor?: string;
+    date: string;
   }): Promise<ListApplyJobsResult> {
     const decoded = input.cursor
       ? decodeCreatedAtCursor(input.cursor)
@@ -53,8 +55,14 @@ export class ApplyJobRepository {
       throw new BadRequestException('Invalid cursor');
     }
 
+    const day = localDayRange(input.date);
+    if (!day) {
+      throw new BadRequestException('Invalid date');
+    }
+
     const rows = await this.prisma.applyJob.findMany({
       where: {
+        queuedAt: { gte: day.start, lt: day.end },
         ...(input.status ? { status: input.status } : {}),
         ...(decoded
           ? {

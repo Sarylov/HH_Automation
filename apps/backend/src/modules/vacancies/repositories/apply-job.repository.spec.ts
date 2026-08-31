@@ -114,7 +114,7 @@ describe('ApplyJobRepository.list', () => {
       { get: () => '30' } as never,
     );
 
-    const result = await repo.list({ limit: 1 });
+    const result = await repo.list({ limit: 1, date: '2026-07-19' });
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.id).toBe('job-1');
     expect(result.nextCursor).toBeTruthy();
