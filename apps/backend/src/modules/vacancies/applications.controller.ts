@@ -1,6 +1,8 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { ApplicationSummaryQueryDto } from './dto/application-summary-query.dto';
 import { ListApplicationsQueryDto } from './dto/list-applications-query.dto';
 import { mapApplicationItem } from './mappers/ops-read.mapper';
+import { GetApplicationSummaryUseCase } from './use-cases/get-application-summary.use-case';
 import { GetApplicationUseCase } from './use-cases/get-application.use-case';
 import { ListApplicationsUseCase } from './use-cases/list-applications.use-case';
 
@@ -8,6 +10,7 @@ import { ListApplicationsUseCase } from './use-cases/list-applications.use-case'
 export class ApplicationsController {
   constructor(
     private readonly listApplications: ListApplicationsUseCase,
+    private readonly getApplicationSummary: GetApplicationSummaryUseCase,
     private readonly getApplication: GetApplicationUseCase,
   ) {}
 
@@ -23,6 +26,11 @@ export class ApplicationsController {
       items: result.items.map(mapApplicationItem),
       nextCursor: result.nextCursor,
     };
+  }
+
+  @Get('summary')
+  async summary(@Query() query: ApplicationSummaryQueryDto) {
+    return this.getApplicationSummary.execute({ date: query.date });
   }
 
   @Get(':id')

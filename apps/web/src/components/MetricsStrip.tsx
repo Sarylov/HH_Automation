@@ -1,16 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchMetrics } from '../api/metrics';
+import { fetchApplicationSummary } from '../api/application-summary';
+import { useOpsDate } from '../hooks/useOpsDate';
+import { formatDayLabel } from '../lib/ops-date';
 
 export function MetricsStrip() {
+  const { date } = useOpsDate();
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['metrics'],
-    queryFn: fetchMetrics,
+    queryKey: ['application-summary', date],
+    queryFn: () => fetchApplicationSummary({ date }),
   });
 
   if (isLoading) {
     return (
       <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500">
-        Загрузка метрик…
+        Загрузка статистики…
       </div>
     );
   }
@@ -18,43 +21,56 @@ export function MetricsStrip() {
   if (isError || !data) {
     return (
       <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-        Метрики недоступны: {error instanceof Error ? error.message : 'error'}
+        Статистика недоступна:{' '}
+        {error instanceof Error ? error.message : 'error'}
       </div>
     );
   }
 
   return (
-    <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Metric
-        label="Очередь"
-        value={`P ${data.queue.pending} · R ${data.queue.running} · F ${data.queue.failed}`}
-      />
-      <Metric
-        label="Отклики сегодня"
-        value={`OK ${data.applies.succeededToday} · fail ${data.applies.failedToday} · manual ${data.applies.needsManualToday}`}
-      />
-      <Metric
-        label="Сессия"
-        value={`${data.session.status}${data.session.stale ? ' (stale)' : ''}`}
-      />
-      <Metric
-        label="Rate limit"
-        value={`${data.rateLimit.hourCount}/${data.rateLimit.hourLimit} ч · ${data.rateLimit.dayCount}/${data.rateLimit.dayLimit} д`}
-      />
-      {data.alerts.length > 0 ? (
-        <div className="sm:col-span-2 lg:col-span-4 text-sm text-amber-800">
-          Alerts: {data.alerts.join(', ')}
-        </div>
-      ) : null}
-    </div>
+    <section className="rounded-lg border border-zinc-200 bg-white px-4 py-3">
+      <h2 className="mb-3 text-sm font-medium text-zinc-700">
+        Статистика · {formatDayLabel(date)}
+      </h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label="Всего" value={data.total} />
+        <StatCard
+          label="Успешно"
+          value={data.succeeded}
+          valueClassName="text-emerald-700"
+        />
+        <StatCard
+          label="Ошибки"
+          value={data.failed}
+          valueClassName="text-rose-700"
+        />
+        <StatCard
+          label="Предупреждения"
+          value={data.warnings}
+          valueClassName="text-amber-700"
+        />
+      </div>
+    </section>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+  valueClassName = 'text-zinc-900',
+}: {
+  label: string;
+  value: number;
+  valueClassName?: string;
+}) {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="mt-0.5 text-sm font-medium text-zinc-900">{value}</div>
+    <div className="rounded-md border border-zinc-100 bg-zinc-50 px-3 py-2">
+      <div className="text-xs uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
+      <div className={`mt-1 text-2xl font-semibold tabular-nums ${valueClassName}`}>
+        {value}
+      </div>
     </div>
   );
 }

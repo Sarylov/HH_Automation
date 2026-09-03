@@ -1,10 +1,14 @@
 /** Apply reason codes returned by Playwright apply action. */
 
-export const APPLY_WARNING_REASONS = new Set([
+export const APPLY_WARNING_REASON_CODES = [
   'cover_letter_skipped',
   'cover_letter_attach_unavailable',
   'cover_letter_attach_failed',
-]);
+] as const;
+
+export const APPLY_WARNING_REASONS = new Set<string>(
+  APPLY_WARNING_REASON_CODES,
+);
 
 export const APPLY_SUCCESS_REASONS = new Set([
   'cover_letter_sent_via_chat',

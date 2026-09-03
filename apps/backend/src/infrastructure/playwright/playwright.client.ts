@@ -109,6 +109,17 @@ export type PlaywrightRaiseResumeResult = {
   screenshotPath?: string;
 };
 
+export type PlaywrightRaiseProfileResumeResult = {
+  ok: boolean;
+  url?: string;
+  raised?: boolean;
+  skipped?: boolean;
+  dryRun?: boolean;
+  reason?: string;
+  message?: string;
+  screenshotPath?: string;
+};
+
 export type PlaywrightUpdateResumeResult = {
   ok: boolean;
   externalId: string;
@@ -380,6 +391,30 @@ export class PlaywrightClient {
       },
     );
     return (await res.json()) as PlaywrightRaiseResumeResult;
+  }
+
+  async raiseProfileResume(
+    input: { dryRun?: boolean } = {},
+  ): Promise<PlaywrightRaiseProfileResumeResult> {
+    try {
+      const res = await fetch(`${this.baseUrl()}/profile/raise-resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun: input.dryRun }),
+        signal: AbortSignal.timeout(120_000),
+      });
+      return (await res.json()) as PlaywrightRaiseProfileResumeResult;
+    } catch (error) {
+      this.logger.warn({
+        msg: 'Profile resume raise failed',
+        error: String(error),
+      });
+      return {
+        ok: false,
+        reason: 'playwright_unreachable',
+        message: error instanceof Error ? error.message : 'unknown error',
+      };
+    }
   }
 
   async updateResume(input: {
