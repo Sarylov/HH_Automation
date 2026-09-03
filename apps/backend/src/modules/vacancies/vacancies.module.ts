@@ -12,6 +12,7 @@ import { AnalyzeVacancyUseCase } from './use-cases/analyze-vacancy.use-case';
 import { GenerateCoverLetterUseCase } from './use-cases/generate-cover-letter.use-case';
 import { ListApplyJobsUseCase } from './use-cases/list-apply-jobs.use-case';
 import { ListApplicationsUseCase } from './use-cases/list-applications.use-case';
+import { GetApplicationSummaryUseCase } from './use-cases/get-application-summary.use-case';
 import { GetApplicationUseCase } from './use-cases/get-application.use-case';
 import { ApplyDelayPolicy } from './policies/apply-delay.policy';
 
@@ -30,6 +31,7 @@ import { ApplyDelayPolicy } from './policies/apply-delay.policy';
     ApplyNextUseCase,
     ListApplyJobsUseCase,
     ListApplicationsUseCase,
+    GetApplicationSummaryUseCase,
     GetApplicationUseCase,
   ],
   exports: [

@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { localDayRange } from '../../../lib/local-day';
+import { APPLY_WARNING_REASON_CODES } from '../apply-reasons';
 import {
   decodeCreatedAtCursor,
   encodeCreatedAtCursor,
@@ -19,6 +20,14 @@ export type ApplicationWithVacancy = Application & {
 export type ListApplicationsResult = {
   items: ApplicationWithVacancy[];
   nextCursor: string | null;
+};
+
+export type ApplicationDaySummary = {
+  date: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+  warnings: number;
 };
 
 const vacancySelect = {
@@ -59,22 +68,9 @@ export class ApplicationRepository {
       throw new BadRequestException('Invalid cursor');
     }
 
-    const day = localDayRange(input.date);
-    if (!day) {
-      throw new BadRequestException('Invalid date');
-    }
-
     const where: Prisma.ApplicationWhereInput = {
       AND: [
-        {
-          OR: [
-            { appliedAt: { gte: day.start, lt: day.end } },
-            {
-              appliedAt: null,
-              createdAt: { gte: day.start, lt: day.end },
-            },
-          ],
-        },
+        this.dayFilter(input.date),
         ...(input.status ? [{ status: input.status }] : []),
         ...(decoded
           ? [
@@ -105,6 +101,77 @@ export class ApplicationRepository {
         : null;
 
     return { items: page, nextCursor };
+  }
+
+  async daySummary(date: string): Promise<ApplicationDaySummary> {
+    const dayFilter = this.dayFilter(date);
+    const excludeStub: Prisma.ApplicationWhereInput = {
+      status: { not: ApplicationStatus.STUB },
+    };
+
+    const [succeeded, warnings, failed] = await Promise.all([
+      this.prisma.application.count({
+        where: {
+          AND: [
+            dayFilter,
+            excludeStub,
+            { status: ApplicationStatus.APPLIED, errorMessage: null },
+          ],
+        },
+      }),
+      this.prisma.application.count({
+        where: {
+          AND: [
+            dayFilter,
+            excludeStub,
+            {
+              status: ApplicationStatus.APPLIED,
+              errorMessage: { in: [...APPLY_WARNING_REASON_CODES] },
+            },
+          ],
+        },
+      }),
+      this.prisma.application.count({
+        where: {
+          AND: [
+            dayFilter,
+            excludeStub,
+            {
+              status: {
+                in: [
+                  ApplicationStatus.FAILED,
+                  ApplicationStatus.NEEDS_MANUAL,
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ]);
+
+    return {
+      date,
+      total: succeeded + warnings + failed,
+      succeeded,
+      failed,
+      warnings,
+    };
+  }
+
+  private dayFilter(date: string): Prisma.ApplicationWhereInput {
+    const day = localDayRange(date);
+    if (!day) {
+      throw new BadRequestException('Invalid date');
+    }
+    return {
+      OR: [
+        { appliedAt: { gte: day.start, lt: day.end } },
+        {
+          appliedAt: null,
+          createdAt: { gte: day.start, lt: day.end },
+        },
+      ],
+    };
   }
 
   async upsertStub(input: {

@@ -5,6 +5,7 @@
 | Resume Maintainer | Every hour | `POST /api/workflows/resume-maintainer` |
 | Skills Ranking | Every 3 days / manual | `POST /api/skills-ranking` (`profiles` required) |
 | Resume Skills Sync | After ranking / manual | `POST /api/resume-skills-sync` (one resume + `rankingRunId`; merged skills pool) |
+| Resume raise from profile | On demand | `POST /api/resumes/raise` (profile page button; HH cooldown → `SKIPPED`) |
 | Vacancy Scanner | Once per day (working hours) | `POST /api/workflows/vacancy-scanner` |
 | Apply next | Every few minutes (working hours) | `POST /api/workflows/apply-next` |
 | Apply (manual) | On demand | `POST /api/workflows/apply` + `vacancyId` |

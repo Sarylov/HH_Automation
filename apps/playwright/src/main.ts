@@ -9,6 +9,7 @@ import { applyToVacancy } from './actions/vacancies/apply.js';
 import { applyStub, openVacancy } from './actions/vacancies/open.js';
 import { listResumes } from './actions/resume/list.js';
 import { raiseResume } from './actions/resume/raise.js';
+import { raiseProfileResume } from './actions/resume/raise-profile.js';
 import { readResume } from './actions/resume/read.js';
 import { updateResume } from './actions/resume/update.js';
 import { syncResumeSkills } from './actions/resume/sync-skills.js';
@@ -166,6 +167,15 @@ async function main(): Promise<void> {
             sendJson(res, result.ok ? 200 : 502, result);
             return;
           }
+        }
+
+        if (method === 'POST' && url.pathname === '/profile/raise-resume') {
+          const body = (await readJsonBody(req)) as { dryRun?: boolean };
+          const result = await raiseProfileResume(config, {
+            dryRun: body.dryRun,
+          });
+          sendJson(res, result.ok ? 200 : 502, result);
+          return;
         }
 
         if (method === 'GET' && url.pathname === '/resumes') {

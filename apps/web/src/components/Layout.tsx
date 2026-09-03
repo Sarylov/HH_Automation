@@ -39,8 +39,8 @@ export function Layout() {
         </div>
       </header>
       <main className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6">
-        <MetricsStrip />
         <DayNavigator date={date} onChange={setDate} />
+        <MetricsStrip />
         <Outlet />
       </main>
     </div>
