@@ -23,7 +23,7 @@ const FAILURE_MESSAGES: Record<string, string> = {
     'HH session is not authenticated — refresh Playwright storageState (auth:manual)',
   playwright_unreachable: 'Playwright service is unreachable',
   raise_button_not_found:
-    'Neither the "Поднять в поиске" button nor the cooldown notice was found on the profile page — HH layout may have changed',
+    'Profile page shows neither the "Поднять в поиске" button nor a cooldown marker ("Поднять автоматически" / recommendation text) — HH layout may have changed',
   raise_not_confirmed:
     'Clicked "Поднять в поиске", but HH did not confirm the raise',
 };
