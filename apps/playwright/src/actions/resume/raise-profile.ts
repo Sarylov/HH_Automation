@@ -1,4 +1,4 @@
-import type { Locator } from 'playwright';
+import type { Locator, Page } from 'playwright';
 import type { PlaywrightConfig } from '../../config.js';
 import { withPage } from '../../browser/context.js';
 import { createLogger } from '../../logger.js';
@@ -10,6 +10,11 @@ const logger = createLogger('resume.raise-profile');
 const PROFILE_PATH = '/applicant/profile/me';
 const RAISE_BUTTON = '[data-qa~="resume-update-button"]';
 const COOLDOWN_NOTICE = '[data-qa="resume-recommendation-text-updateResume"]';
+const CLICKABLE = 'button, a';
+/** Paid auto-raise promo — HH renders it instead of the manual raise button. */
+const AUTO_RAISE_LABEL = /поднять\s+автоматически/i;
+const AUTO_RAISE_SKIP_MESSAGE =
+  'HH offers only the paid auto-raise — the manual raise is on cooldown';
 const CONFIRM_TIMEOUT_MS = 15_000;
 
 export type RaiseProfileResumeInput = {
@@ -31,6 +36,24 @@ export type RaiseProfileResumeResult = {
 async function readText(locator: Locator): Promise<string | undefined> {
   const raw = await locator.textContent().catch(() => null);
   return raw?.replace(/\s+/g, ' ').trim() || undefined;
+}
+
+/** Labels of every "поднять …" control, to diagnose HH layout changes. */
+async function listRaiseControls(page: Page): Promise<string[]> {
+  return page
+    .locator(CLICKABLE)
+    .filter({ hasText: /поднять/i })
+    .evaluateAll((nodes) =>
+      nodes.slice(0, 10).map((node) => {
+        const qa = node.getAttribute('data-qa') ?? 'no-data-qa';
+        const label = (node.textContent ?? '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 60);
+        return `${qa} | ${label}`;
+      }),
+    )
+    .catch(() => []);
 }
 
 /**
@@ -62,19 +85,41 @@ export async function raiseProfileResume(
         };
       }
 
-      const raiseButton = page.locator(RAISE_BUTTON).first();
+      const raiseButton = page
+        .locator(RAISE_BUTTON)
+        .filter({ hasNotText: AUTO_RAISE_LABEL })
+        .first();
       const cooldownNotice = page.locator(COOLDOWN_NOTICE).first();
+      const autoRaiseButton = page
+        .locator(CLICKABLE)
+        .filter({ hasText: AUTO_RAISE_LABEL })
+        .first();
 
       await raiseButton
         .or(cooldownNotice)
+        .or(autoRaiseButton)
         .first()
         .waitFor({ state: 'visible', timeout: config.defaultTimeoutMs })
         .catch(() => undefined);
 
       if (!(await raiseButton.isVisible().catch(() => false))) {
-        if (await cooldownNotice.isVisible().catch(() => false)) {
-          const message = await readText(cooldownNotice);
-          logger.info('Resume raise skipped — cooldown', { url, message });
+        const noticeVisible = await cooldownNotice.isVisible().catch(() => false);
+        const autoRaiseVisible = await autoRaiseButton
+          .isVisible()
+          .catch(() => false);
+
+        // HH hides the cooldown notice in some layouts, but keeps the
+        // auto-raise promo in place of the manual raise button.
+        if (noticeVisible || autoRaiseVisible) {
+          const message = noticeVisible
+            ? await readText(cooldownNotice)
+            : AUTO_RAISE_SKIP_MESSAGE;
+          logger.info('Resume raise skipped — cooldown', {
+            url,
+            noticeVisible,
+            autoRaiseVisible,
+            message,
+          });
           return {
             ok: true,
             url,
@@ -90,6 +135,11 @@ export async function raiseProfileResume(
           config.artifactsDir,
           'resume-raise-profile-no-button',
         );
+        logger.warn('Raise controls not found on profile', {
+          url,
+          controls: await listRaiseControls(page),
+          screenshotPath,
+        });
         return {
           ok: false,
           url,
@@ -114,6 +164,8 @@ export async function raiseProfileResume(
       await raiseButton.click();
 
       const confirmed = await cooldownNotice
+        .or(autoRaiseButton)
+        .first()
         .waitFor({ state: 'visible', timeout: CONFIRM_TIMEOUT_MS })
         .then(() => true)
         .catch(() => false);
